@@ -19,7 +19,7 @@ func Connect(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	if cfg.ConnConfig.RuntimeParams == nil {
 		cfg.ConnConfig.RuntimeParams = map[string]string{}
 	}
-	cfg.ConnConfig.RuntimeParams["app-name"] = "pg_advisor"
+	cfg.ConnConfig.RuntimeParams["application_name"] = "pg_advisor"
 
 	// connection pool setting
 	cfg.MaxConns = 5
