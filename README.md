@@ -1,9 +1,9 @@
-# pg-advisor 🐘
+# iCli🐘
 
 
-`pg-advisor` is a Go CLI tool that helps you figure out why your Postgres queries are slow. It looks at your database's query history, runs an explain plan on the worst offenders, and tells you exactly which indexes you need to add to fix them.
+`iCli` is a Go CLI tool that helps you figure out why your Postgres queries are slow. It looks at your database's query history, runs an explain plan on the worst offenders, and tells you exactly which indexes you need to add to fix them.
 
-![pg-advisor demo](assets/demo.gif)
+![iClidemo](assets/demo.gif)
 *(Example: Finding a missing index on a 5M row table)*
 
 ## Why I Built This
@@ -17,10 +17,10 @@ I got tired of manually digging through `pg_stat_statements` and trying to read 
 
 ## Installation
 
-You can install `pg-advisor` directly via Go:
+You can install `iCli` directly via Go:
 
 ```bash
-go install [github.com/yourusername/pg-advisor/cmd/pgadvisor@latest](https://github.com/yourusername/pg-advisor/cmd/pgadvisor@latest)
+go install [github.com/yourusername/iCli/cmd/pgadvisor@latest](https://github.com/yourusername/pg-advisor/cmd/iCli@latest)
 ```
 
 ## Quick Start
@@ -59,7 +59,7 @@ SELECT * FROM orders WHERE status = $1 AND created_at > $2;
 
 ```bash
 # Clone the repository
-git clone [https://github.com/yourusername/pg-advisor.git](https://github.com/yourusername/pg-advisor.git)
+git clone [https://github.com/yourusername/iCli.git](https://github.com/yourusername/iCli.git)
 cd pg-advisor
 
 # Start a dummy Postgres database with pg_stat_statements enabled
