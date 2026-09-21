@@ -66,5 +66,8 @@ func GetTopQueries(ctx context.Context, pool *pgxpool.Pool, limit int) ([]QueryS
 		}
 		stats = append(stats, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed while reading pg_stat_statements: %w", err)
+	}
 	return stats, nil
 }
