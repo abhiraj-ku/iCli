@@ -7,8 +7,7 @@
 *(Example: Finding a missing index on a 5M row table)*
 
 ## Why I Built This
-I got tired of manually digging through `pg_stat_statements` and trying to read massive JSON `EXPLAIN` plans every time the database CPU spiked.. I built this to understand explain and pg_stat_statements a little better.
-
+I got tired of manually digging through `pg_stat_statements` and trying to read massive JSON `EXPLAIN` plans every time the database CPU spiked. 
 ## What It Does
 * **Finds slow queries:** Grabs the worst queries based on actual total execution time.
 * **Spots bad plans:** Parses the `EXPLAIN (FORMAT JSON)` output to catch issues like massive sequential scans or disk-based sorts.
