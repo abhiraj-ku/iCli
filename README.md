@@ -1,4 +1,4 @@
-# iCli🐘
+# iCli🐘 - Fix and fix your slowest queries 
 
 
 `iCli` is a Go CLI tool that helps you figure out why your Postgres queries are slow. It looks at your database's query history, runs an explain plan on the worst offenders, and tells you exactly which indexes you need to add to fix them.
