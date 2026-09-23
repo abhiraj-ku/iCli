@@ -17,6 +17,14 @@ type QueryStats struct {
 	AvgTime   float64
 }
 
+// Unused indexes detection - these are generally those which are not used
+type UnusedIndex struct {
+	Schema    string
+	Table     string
+	IndexName string
+	Size      string
+}
+
 // Retrieves the top-most time consuming queries
 // we check for version PG12 vs PG13+ schema change (total_time vs total_exec_time)
 // conflict arises with how the pg_stat_statements return the schema
@@ -70,4 +78,40 @@ func GetTopQueries(ctx context.Context, pool *pgxpool.Pool, limit int) ([]QueryS
 		return nil, fmt.Errorf("failed while reading pg_stat_statements: %w", err)
 	}
 	return stats, nil
+}
+
+// retrieve unsued schemas
+func RUnusedIndex(ctx context.Context, pool *pgxpool.Pool) ([]UnusedIndex, error) {
+	// With pg_stat_user_indexes and join with pg_index.
+	// We will not scan Primary keys and unique constraints
+
+	query := `
+		select 
+			s.schemaname,
+			s.relname as Table_Name,
+			s.indexrelname as Index_name,
+			pg_size_preety(pg_relation_size(s.indexrelid)) as Index_Size
+		from pg_stat_user_index s
+		join pg_index i on s.indexrelid = i.indexrelid
+		where s.idx_scan=0
+		and i.indisprimary = false
+		and i.indisunique = false
+		order by pg_relation_size(s.indexrelid) desc;
+	`
+	rows, err := pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query unused indexes: %w", err)
+	}
+	defer rows.Close()
+
+	var uIndex []UnusedIndex
+	for rows.Next() {
+		var idx UnusedIndex
+		if err := rows.Scan(&idx.Schema, &idx.Table, &idx.IndexName, &idx.Size); err != nil {
+			return nil, fmt.Errorf("failed to scan unused index row: %w", err)
+		}
+		uIndex = append(uIndex, idx)
+	}
+
+	return uIndex, rows.Err()
 }
