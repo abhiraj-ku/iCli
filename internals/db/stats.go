@@ -45,6 +45,7 @@ func GetTopQueries(ctx context.Context, pool *pgxpool.Pool, limit int) ([]QueryS
 	// We also filter out trivial queries (calls > 5) to focus on problematic queries.
 
 	query := fmt.Sprintf(`
+		/* iCli */
 		SELECT 
 			queryid, 
 			query, 
@@ -52,7 +53,7 @@ func GetTopQueries(ctx context.Context, pool *pgxpool.Pool, limit int) ([]QueryS
 			%[1]s AS total_time, 
 			(%[1]s / calls) AS avg_time
 		FROM pg_stat_statements 
-		WHERE query NOT ILIKE '%%pg-advisor%%' 
+		WHERE query NOT ILIKE '%%iCli%%'
 		  AND query NOT ILIKE '%%SHOW server_version_num%%'
 		  AND calls > 5
 		ORDER BY %[1]s DESC 
@@ -91,7 +92,7 @@ func RUnusedIndex(ctx context.Context, pool *pgxpool.Pool) ([]UnusedIndex, error
 			s.relname as Table_Name,
 			s.indexrelname as Index_name,
 			pg_size_pretty(pg_relation_size(s.indexrelid)) as Index_Size
-		from pg_stat_user_index s
+		from pg_stat_user_indexes s
 		join pg_index i on s.indexrelid = i.indexrelid
 		where s.idx_scan=0
 		and i.indisprimary = false

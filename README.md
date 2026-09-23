@@ -1,68 +1,75 @@
-# iCli🐘 - Find and fix your slowest queries now with one command
+# iCli - PostgreSQL query and index advisor
 
+<p align="center">
+	<img src="assets/icli-cover (1).png" alt="iCli PostgreSQL advisor logo" width="320">
+</p>
 
-`iCli` is a Go CLI tool that helps you figure out why your Postgres queries are slow. It looks at your database's query history, runs an explain plan on the worst offenders, and tells you exactly which indexes you need to add to fix them.
+`iCli` is a Go CLI that reads PostgreSQL query statistics, explains the most expensive queries, identifies possible execution-plan bottlenecks, and reports unused indexes.
 
-![iClidemo](assets/demo.gif)
-*(Example: Finding a missing index on a 5M row table)*
+## Demo
 
-## Why I Built This
-I got tired of manually digging through `pg_stat_statements` and trying to read massive JSON `EXPLAIN` plans every time the database CPU spiked. 
-## What It Does
-* **Finds slow queries:** Grabs the worst queries based on actual total execution time.
-* **Spots bad plans:** Parses the `EXPLAIN (FORMAT JSON)` output to catch issues like massive sequential scans or disk-based sorts.
-* **Cleans up dead weight:** Checks `pg_stat_user_indexes` to find indexes that are never used for reads but are slowing down your `INSERT`s.
-* **Safe recommendations:** Spits out the exact `CREATE INDEX CONCURRENTLY` command you need so you don't lock your tables in production.
+![iCli example output](assets/exampl.png)
 
-## Installation
+## Features
 
-You can install `iCli` directly via Go:
+- Finds expensive queries using `pg_stat_statements`.
+- Runs `EXPLAIN (FORMAT JSON)` on the selected queries.
+- Reports plan issues such as sequential scans and memory-heavy operations.
+- Finds non-primary, non-unique indexes with zero recorded scans.
+- Prints actionable index and session recommendations.
 
-```bash
-go install [github.com/yourusername/iCli/cmd/pgadvisor@latest](https://github.com/yourusername/pg-advisor/cmd/iCli@latest)
+## Requirements
+
+- Go 1.25 or later.
+- PostgreSQL with `pg_stat_statements` enabled.
+
+Enable the extension at the server level, then restart PostgreSQL:
+
+```sql
+ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
 ```
 
-## Quick Start
+After restarting PostgreSQL, enable it in the target database:
 
-Run the analyzer against any PostgreSQL database:
-
-```bash
-pgadvisor analyze --url "postgres://user:pass@localhost:5432/production_db"
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 ```
 
-### Example Output
-```text
-🔍 Analyzing Top 5 Expensive Queries...
-
-Query (Calls: 14,500, Total Time: 4,230 ms):
-SELECT * FROM orders WHERE status = $1 AND created_at > $2;
-
-  [WARNING] High-cost Sequential Scan detected!
-    - Table: orders
-    - Estimated Rows Scanned: 450,000
-    - Filter applied: (status = 'pending') AND (created_at > '2023-01-01')
-    
-    💡 RECOMMENDATION: 
-    CREATE INDEX CONCURRENTLY idx_orders_status_created ON orders(status, created_at);
-------------------------------------------------------------
-```
-
-## Architecture & How It Works
-
-1. **Telemetry:** The tool queries `pg_stat_statements` to find slow queries.
-2. **Sanitization:** It uses regex to replace parameters (`$1`, `$2`) with `NULL` to bypass Postgres parameter errors without executing the query.
-3. **Execution Tree Traversal:** It runs `EXPLAIN (FORMAT JSON)` and unmarshals the output into a recursive Go struct (`PlanNode`). 
-4. **Analysis:** A tree-walking algorithm inspects each node's `NodeType`, `Total Cost`, and `Plan Rows` against predefined heuristic thresholds.
-
-## Local Development
+On a Homebrew PostgreSQL 18 installation, restart with:
 
 ```bash
-# Clone the repository
-git clone [https://github.com/yourusername/iCli.git](https://github.com/yourusername/iCli.git)
-cd pg-advisor
+brew services restart postgresql@18
+```
 
-# Start a dummy Postgres database with pg_stat_statements enabled
-make db-up
+## Run Locally
 
-# Build and run the CLI
-make run
+Clone the repository and run the CLI with a PostgreSQL connection string:
+
+```bash
+git clone <repository-url>
+cd pg_advisor
+go run ./cmd/icli -dsn="postgres://user:password@localhost:5432/database?sslmode=disable"
+```
+
+The short flag `-d` is also supported:
+
+```bash
+go run ./cmd/icli -d="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+```
+
+Build a binary with:
+
+```bash
+go build -o icli ./cmd/icli
+./icli -dsn="postgres://user:password@localhost:5432/database?sslmode=disable"
+```
+
+## How It Works
+
+1. Reads the PostgreSQL server version to select the correct execution-time column.
+2. Queries `pg_stat_statements` and excludes iCli's own telemetry query.
+3. Sanitizes parameter placeholders before requesting an `EXPLAIN (FORMAT JSON)` plan.
+4. Walks the plan and reports detected issues.
+5. Queries `pg_stat_user_indexes` and `pg_index` to find unused non-primary, non-unique indexes.
+
+Query statistics and index statistics are collected by PostgreSQL and may reset when the server restarts or statistics are manually reset.
