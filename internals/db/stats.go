@@ -10,7 +10,7 @@ import (
 
 // Stats metadata
 type QueryStats struct {
-	QueryID   int
+	QueryID   int64
 	QueryText string
 	Calls     int
 	TotalTime float64

@@ -8,15 +8,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/abhiraj-ku/pg_adv/internals/analyzer"
 	"github.com/abhiraj-ku/pg_adv/internals/db"
+	"github.com/abhiraj-ku/pg_adv/internals/report"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
-
-	dsn := flag.String("dsn", "", "Postgres connection string(e.g., postgres://user:pass@localhost:5432/db)")
-	limit := flag.Int("limit", 5, "Number of queries to analyze")
-
+	dsn := flag.String("dsn", "", "PostgreSQL connection string(e.g., postgres://user:pass@localhost:5432/db)")
 	flag.Parse()
 
 	if *dsn == "" {
@@ -32,21 +31,30 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v\n", err)
 	}
+	defer pool.Close()
 	fmt.Println("Connected to database..")
-	fmt.Printf("Fetching top %d queries ...\n\n", *limit)
+	fmt.Printf("Fetching top %d queries ...\n\n", 3)
 
-	// fetch activity
-	stats, err := db.GetTopQueries(ctx, pool, *limit)
-	if err != nil {
+	// slow Queries
+	stats, _ := db.GetTopQueries(ctx, pool, 3)
+
+	for _, stat := range stats {
+		// get JSON Execution Plan
+		planJSON, err := db.GetExplainPlan(ctx, pool, stat.QueryText)
 		if err != nil {
-			log.Fatalf("Failed to retrieve query stats: %v\n", err)
+			continue // Skip queries that cannot be EXPLAINed
 		}
+
+		//  walk the AST
+		issues, _ := analyzer.AnalyzePlan(planJSON)
+
+		// Print findings
+		report.PrintQueryIssues(stat.QueryID, stat.QueryText, stat.AvgTime, issues)
 	}
 
-	for i, stat := range stats {
-		fmt.Printf("#%d | Calls: %d | Avg Time: %.2fms\n", i+1, stat.Calls, stat.AvgTime)
-		fmt.Printf("Query: %s\n", stat.QueryText)
-		fmt.Println("--------------------------------------------------")
-	}
+	// unused Indexes
+	unused, _ := db.RUnusedIndex(ctx, pool)
 
+	// show index bloat findings
+	report.PrintUnusedIndexes(unused)
 }
