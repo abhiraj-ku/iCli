@@ -90,7 +90,7 @@ func RUnusedIndex(ctx context.Context, pool *pgxpool.Pool) ([]UnusedIndex, error
 			s.schemaname,
 			s.relname as Table_Name,
 			s.indexrelname as Index_name,
-			pg_size_preety(pg_relation_size(s.indexrelid)) as Index_Size
+			pg_size_pretty(pg_relation_size(s.indexrelid)) as Index_Size
 		from pg_stat_user_index s
 		join pg_index i on s.indexrelid = i.indexrelid
 		where s.idx_scan=0
