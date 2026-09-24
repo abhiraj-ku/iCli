@@ -10,9 +10,10 @@ import (
 
 var paramCheckRegex = regexp.MustCompile(`\$\d+|\?`)
 
-// Thuis removes all parametrized path in query with null for  execcution
+// Thuis removes all parametrized variable with with SELECT NULL
+// This prevents Postgres from optimizing away "column = NULL" checks.
 func sanitizeExplainQ(qr string) string {
-	return paramCheckRegex.ReplaceAllString(qr, "null")
+	return paramCheckRegex.ReplaceAllString(qr, "(SELECT NULL)")
 }
 
 func GetExplainPlan(ctx context.Context, pool *pgxpool.Pool, query string) (string, error) {

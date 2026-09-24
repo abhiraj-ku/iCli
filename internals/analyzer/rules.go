@@ -20,12 +20,12 @@ func evalNode(node *PlanNode) []Issue {
 
 // identifies large table scans with filter
 func checkSeqScan(node *PlanNode) (Issue, bool) {
-	if node.NodeType == "Seq Scan" && node.Filter != "" && node.PlanRows > 1000 {
+	// If TotalCost > 50, it means it's scanning a reasonably sized table
+	if node.NodeType == "Seq Scan" && node.Filter != "" && node.TotalCost > 50 {
 		return Issue{
 			Type:        "Missing Index",
 			Relation:    node.Relation,
-			Description: fmt.Sprintf("Sequential scan filtering %.0f projected rows. Consider an index on the filtered columns.", node.PlanRows),
-			Severity:    "High",
+			Description: fmt.Sprintf("Heavy Sequential Scan detected (Cost: %.2f). Consider an index on the filtered columns.", node.TotalCost), Severity: "High",
 		}, true
 	}
 
