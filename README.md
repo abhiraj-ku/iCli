@@ -39,26 +39,87 @@ brew services restart postgresql@18
 
 ## Run Locally
 
-Clone the repository and run the CLI with a PostgreSQL connection string:
+Clone the repository and run the CLI with a PostgreSQL connection string.
+
+DSN resolution order:
+
+1. `-d` / `--dsn`
+2. `PGDSN` environment variable
+
+Examples:
 
 ```bash
 git clone <repository-url>
 cd pg_advisor
-go run ./cmd/icli -dsn="postgres://user:password@localhost:5432/database?sslmode=disable"
+export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+go run ./cmd/icli report
 ```
 
-The short flag `-d` is also supported:
+Or pass the DSN explicitly:
 
 ```bash
-go run ./cmd/icli -d="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+go run ./cmd/icli -d="postgres://postgres@localhost:5432/postgres?sslmode=disable" report
+```
+
+The long-form flag is also supported:
+
+```bash
+go run ./cmd/icli --dsn="postgres://postgres@localhost:5432/postgres?sslmode=disable" report
 ```
 
 Build a binary with:
 
 ```bash
 go build -o icli ./cmd/icli
-./icli -dsn="postgres://user:password@localhost:5432/database?sslmode=disable"
+export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+./icli report
 ```
+
+## Developer Setup
+
+### Prerequisites
+
+- Go 1.25 or later
+- PostgreSQL instance running locally or remotely
+- `pg_stat_statements` enabled in the target database
+- a valid DSN available through either `-d/--dsn` or `PGDSN`
+
+### Local database setup
+
+Create a local PostgreSQL database and enable the extension:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+```
+
+Then export the connection string for local development:
+
+```bash
+export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+```
+
+### Repo layout
+
+- `cmd/icli` — CLI entrypoint
+- `internals/analyzer` — execution-plan issue detection
+- `internals/db` — SQL queries and PostgreSQL connectivity
+- `internals/health` — database health collection and rendering
+- `internals/report` — terminal UI output for findings and reports
+
+### Common dev commands
+
+```bash
+go test ./...
+go run ./cmd/icli report
+GOFLAGS=-mod=mod go run ./cmd/icli report
+```
+
+### Troubleshooting
+
+- If you see `connection refused`, confirm PostgreSQL is running and the host/port are correct.
+- If the report is empty, ensure `pg_stat_statements` is enabled and the user has access to query stats.
+- If the DSN is missing, pass `-d` / `--dsn` or export `PGDSN`.
+- If formatting looks odd in a narrow terminal, run it in a wider terminal or resize the window.
 
 ## Releases
 
