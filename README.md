@@ -71,7 +71,6 @@ Prebuilt releases are available for these platforms:
 | Platform | Architecture | Archive name pattern |
 | --- | --- | --- |
 | Linux | x86_64 | `<project>_Linux_x86_64.tar.gz` |
-| Linux | ARM 64-bit | `<project>_Linux_arm64.tar.gz` |
 | macOS (Apple Silicon, M-series) | ARM 64-bit | `<project>_Darwin_arm64.tar.gz` |
 
 Download the archive for your platform from the project's Releases page, extract it, and run `icli`:
