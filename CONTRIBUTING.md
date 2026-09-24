@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve pg_advisor.
+Thanks for helping improve iCli.
 
 ## Prerequisites
 
