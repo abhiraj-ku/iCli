@@ -1,9 +1,5 @@
 # iCli - PostgreSQL query and index advisor
 
-<p align="center">
-	<img src="assets/icli-cover (1).png" alt="iCli PostgreSQL advisor logo" width="320">
-</p>
-
 `iCli` is a Go CLI that reads PostgreSQL query statistics, explains the most expensive queries, identifies possible execution-plan bottlenecks, and reports unused indexes.
 
 ## Demo
