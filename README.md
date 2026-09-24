@@ -8,7 +8,7 @@
 
 ## Demo
 
-![iCli example output](assets/example.png)
+![iCli example output](/assets/demo.gif)
 
 ## Features
 
@@ -63,6 +63,25 @@ Build a binary with:
 go build -o icli ./cmd/icli
 ./icli -dsn="postgres://user:password@localhost:5432/database?sslmode=disable"
 ```
+
+## Releases
+
+Prebuilt releases are available for these platforms:
+
+| Platform | Architecture | Archive name pattern |
+| --- | --- | --- |
+| Linux | x86_64 | `<project>_Linux_x86_64.tar.gz` |
+| Linux | ARM 64-bit | `<project>_Linux_arm64.tar.gz` |
+| macOS (Apple Silicon, M-series) | ARM 64-bit | `<project>_Darwin_arm64.tar.gz` |
+
+Download the archive for your platform from the project's Releases page, extract it, and run `icli`:
+
+```bash
+tar -xzf <release-archive>.tar.gz
+./icli -dsn="postgres://user:password@localhost:5432/database?sslmode=disable"
+```
+
+Windows and Intel macOS binaries are not included in releases.
 
 ## How It Works
 
