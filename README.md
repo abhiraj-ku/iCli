@@ -8,7 +8,7 @@
 
 ## Demo
 
-![iCli example output](assets/exampl.png)
+![iCli example output](assets/example.png)
 
 ## Features
 
