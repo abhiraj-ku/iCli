@@ -67,6 +67,10 @@ var rootCmd = cobra.Command{
 			return err
 		}
 
+		if len(stats) > 0 {
+			fmt.Println(report.SectionBannerStyle.Render(" ⚡ SLOW QUERY & EXECUTION PLAN ANALYSIS "))
+		}
+
 		for _, stat := range stats {
 			// get json execution plan
 			planJSON, err := db.GetExplainPlan(ctx, pool, stat.QueryText)
@@ -87,6 +91,14 @@ var rootCmd = cobra.Command{
 			return err
 		}
 		report.PrintUnusedIndexes(unused)
+
+		// fetch missing foreign key indexes
+		missingFKs, err := db.GetMissingFKIndexes(ctx, pool)
+		if err != nil {
+			return err
+		}
+		report.PrintMissingFKIndexes(missingFKs)
+
 		return nil
 	},
 }

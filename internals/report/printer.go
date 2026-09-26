@@ -10,109 +10,210 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 )
 
-// Define centralized Lipgloss styles
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#00ADD8")). // Go/Postgres Blue
-			MarginTop(1).
+	primaryColor    = lipgloss.Color("#7D56F4")
+	cyanColor       = lipgloss.Color("#00ADD8")
+	successColor    = lipgloss.Color("#04B575")
+	warningColor    = lipgloss.Color("#F8C537")
+	dangerColor     = lipgloss.Color("#FF5F87")
+	subtleTextColor = lipgloss.Color("#A8B0D3")
+	codeColor       = lipgloss.Color("#A8CC8C")
+
+	SectionBannerStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#FFFFFF")).
+				Background(primaryColor).
+				Padding(0, 1).
+				MarginTop(1).
+				MarginBottom(1)
+
+	queryCardStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(primaryColor).
+			Padding(1, 2).
 			MarginBottom(1)
+
+	tableCardStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(cyanColor).
+			Padding(1, 2).
+			MarginBottom(1)
+
+	highSeverityBadge = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#FFFFFF")).
+				Background(dangerColor).
+				Padding(0, 1)
+
+	medSeverityBadge = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#000000")).
+				Background(warningColor).
+				Padding(0, 1)
+
+	queryIdBadge = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(cyanColor).
+			Padding(0, 1)
 
 	successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#04B575"))
+			Foreground(successColor).
+			Bold(true)
 
 	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#F8C537"))
+			Foreground(warningColor).
+			Bold(true)
 
-	alertCardStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#FF5F87")).
-			Padding(0, 1).
-			MarginBottom(1)
-
-	recommendationStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("#FF5F87"))
+	queryTextStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#E6EEF8")).
+			Italic(true)
 
 	sqlSnippetStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#A8CC8C")).
-			Italic(true)
+			Foreground(codeColor).
+			Bold(true)
+
+	recHeaderStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(dangerColor)
 )
 
-// PrintQueryIssues formats the bottlenecks into bordered alert cards.
 func PrintQueryIssues(queryID int64, queryText string, avgTime float64, issues []analyzer.Issue) {
-	fmt.Println(titleStyle.Render(fmt.Sprintf("--- Analyzing Query ID: %d ---", queryID)))
+	var b strings.Builder
 
-	// Replace newlines and tabs with spaces to keep the query on one line.
+	badge := queryIdBadge.Render(fmt.Sprintf("QUERY #%d", queryID))
+	timeStr := warningStyle.Render(fmt.Sprintf("⏱  Avg Execution: %.2fms", avgTime))
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Center, badge, "  ", timeStr))
+	b.WriteString("\n\n")
+
 	displayQuery := strings.Join(strings.Fields(queryText), " ")
-	if len(displayQuery) > 80 {
-		displayQuery = displayQuery[:77] + "..."
+	if len(displayQuery) > 100 {
+		displayQuery = displayQuery[:97] + "..."
 	}
-
-	fmt.Printf("Query: %s\n", displayQuery)
-	fmt.Printf("Avg Execution Time: %s\n\n", warningStyle.Render(fmt.Sprintf("%.2fms", avgTime)))
+	b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Render("SQL Query:"))
+	b.WriteString("\n")
+	b.WriteString(queryTextStyle.Render(displayQuery))
+	b.WriteString("\n")
 
 	if len(issues) == 0 {
-		fmt.Println(successStyle.Render("✓ No obvious bottlenecks found in execution plan."))
-		return
-	}
+		b.WriteString("\n")
+		b.WriteString(successStyle.Render("✓ Execution plan healthy. No obvious bottlenecks detected."))
+	} else {
+		for _, issue := range issues {
+			b.WriteString("\n")
+			var sevBadge string
+			if strings.EqualFold(issue.Severity, "High") {
+				sevBadge = highSeverityBadge.Render(" HIGH ")
+			} else {
+				sevBadge = medSeverityBadge.Render(" MED ")
+			}
 
-	for _, issue := range issues {
-		// Build the content for the alert card
-		var cardContent string
-		cardContent += fmt.Sprintf("[%s] %s\n", issue.Severity, issue.Type)
-		cardContent += fmt.Sprintf("Relation: %s\n", issue.Relation)
-		cardContent += fmt.Sprintf("Details:  %s\n\n", issue.Description)
+			b.WriteString(fmt.Sprintf("%s %s  (Relation: %s)\n", sevBadge, lipgloss.NewStyle().Bold(true).Render(issue.Type), issue.Relation))
+			b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Render(fmt.Sprintf("Details: %s", issue.Description)))
+			b.WriteString("\n")
 
-		switch issue.Type {
-		case "Missing Index":
-			rec := recommendationStyle.Render("RECOMMENDATION:")
-			sql := sqlSnippetStyle.Render(fmt.Sprintf("CREATE INDEX CONCURRENTLY idx_%s_optimizer ON %s (/* columns */);", issue.Relation, issue.Relation))
-			cardContent += fmt.Sprintf("%s %s", rec, sql)
-		case "Memory Starvation":
-			rec := recommendationStyle.Render("RECOMMENDATION:")
-			sql := sqlSnippetStyle.Render("Increase work_mem for this session (e.g., SET work_mem = '64MB');")
-			cardContent += fmt.Sprintf("%s %s", rec, sql)
+			switch issue.Type {
+			case "Missing Index":
+				sql := fmt.Sprintf("CREATE INDEX CONCURRENTLY idx_%s_optimizer ON %s (/* columns */);", issue.Relation, issue.Relation)
+				b.WriteString(recHeaderStyle.Render("💡 Recommendation: "))
+				b.WriteString(sqlSnippetStyle.Render(sql))
+			case "Memory Starvation":
+				sql := "SET work_mem = '64MB';"
+				b.WriteString(recHeaderStyle.Render("💡 Recommendation: "))
+				b.WriteString(sqlSnippetStyle.Render(sql))
+			case "Inefficient Join":
+				b.WriteString(recHeaderStyle.Render("💡 Recommendation: "))
+				b.WriteString(sqlSnippetStyle.Render("Add an index on the join condition columns to avoid sequential scans."))
+			}
+			b.WriteString("\n")
 		}
-
-		// Render the bordered card
-		fmt.Println(alertCardStyle.Render(cardContent))
 	}
+
+	fmt.Println(queryCardStyle.Render(b.String()))
 }
 
-// PrintUnusedIndexes formats the dead-weight indexes into a bordered table.
 func PrintUnusedIndexes(indexes []db.UnusedIndex) {
-	fmt.Println(titleStyle.Render("=== UNUSED INDEX REPORT ==="))
+	fmt.Println(SectionBannerStyle.Render(" 🔍 UNUSED INDEX ANALYSIS "))
 
 	if len(indexes) == 0 {
-		fmt.Println(successStyle.Render("✓ No unused indexes found. Your write performance is healthy!\n"))
+		fmt.Println(queryCardStyle.Render(successStyle.Render("✓ No unused indexes found. Your write & storage efficiency is optimal!")))
 		return
 	}
 
-	fmt.Printf("Found %d indexes with 0 scans. These are degrading INSERT/UPDATE performance.\n\n", len(indexes))
+	var b strings.Builder
+	b.WriteString(lipgloss.NewStyle().Foreground(warningColor).Render(
+		fmt.Sprintf("⚠️  Found %d index(es) with 0 recorded scans. These degrade INSERT/UPDATE throughput and waste disk space.\n\n", len(indexes)),
+	))
 
-	// Initialize a new lipgloss Table
 	t := table.New().
-		Border(lipgloss.NormalBorder()).
-		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#999999"))).
-		Headers("TABLE", "INDEX NAME", "SPACE WASTED").
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#555577"))).
+		Headers("TABLE", "INDEX NAME", "WASTED SPACE").
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == 0 {
-				return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00ADD8")).Padding(0, 1)
+				return lipgloss.NewStyle().Bold(true).Foreground(cyanColor).Padding(0, 1)
 			}
-			return lipgloss.NewStyle().Padding(0, 1)
+			return lipgloss.NewStyle().Padding(0, 1).Foreground(lipgloss.Color("#E6EEF8"))
 		})
 
 	for _, idx := range indexes {
 		t.Row(fmt.Sprintf("%s.%s", idx.Schema, idx.Table), idx.IndexName, idx.Size)
 	}
 
-	// Render the table
-	fmt.Println(t.Render())
+	b.WriteString(t.Render())
+	b.WriteString("\n\n")
+	b.WriteString(recHeaderStyle.Render("💡 Actionable Remediation SQL:"))
+	b.WriteString("\n")
 
-	fmt.Println(titleStyle.Render("\nActionable SQL:"))
 	for _, idx := range indexes {
-		fmt.Println(sqlSnippetStyle.Render(fmt.Sprintf("DROP INDEX CONCURRENTLY %s.%s;", idx.Schema, idx.IndexName)))
+		dropCmd := fmt.Sprintf("DROP INDEX CONCURRENTLY %s.%s;", idx.Schema, idx.IndexName)
+		b.WriteString(sqlSnippetStyle.Render("  " + dropCmd))
+		b.WriteString("\n")
 	}
-	fmt.Println()
+
+	fmt.Println(tableCardStyle.Render(b.String()))
+}
+
+func PrintMissingFKIndexes(fks []db.MissingFKIndex) {
+	fmt.Println(SectionBannerStyle.Render(" 🔗 MISSING FOREIGN KEY INDEX ANALYSIS "))
+
+	if len(fks) == 0 {
+		fmt.Println(queryCardStyle.Render(successStyle.Render("✓ All foreign key constraints have covering child indexes. Cascading operations are fast!")))
+		return
+	}
+
+	var b strings.Builder
+	b.WriteString(lipgloss.NewStyle().Foreground(dangerColor).Render(
+		fmt.Sprintf("⚠️  Found %d foreign key constraint(s) missing a child table index. Deletes/updates on parent tables will trigger full child table scans.\n\n", len(fks)),
+	))
+
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#555577"))).
+		Headers("CHILD TABLE", "FK COLUMNS", "CONSTRAINT", "PARENT TABLE").
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == 0 {
+				return lipgloss.NewStyle().Bold(true).Foreground(cyanColor).Padding(0, 1)
+			}
+			return lipgloss.NewStyle().Padding(0, 1).Foreground(lipgloss.Color("#E6EEF8"))
+		})
+
+	for _, fk := range fks {
+		t.Row(fmt.Sprintf("%s.%s", fk.Schema, fk.ChildTable), fk.FKColumns, fk.ConstraintName, fk.ParentTable)
+	}
+
+	b.WriteString(t.Render())
+	b.WriteString("\n\n")
+	b.WriteString(recHeaderStyle.Render("💡 Actionable Remediation SQL:"))
+	b.WriteString("\n")
+
+	for _, fk := range fks {
+		colSanitized := strings.ReplaceAll(strings.ReplaceAll(fk.FKColumns, ", ", "_"), " ", "_")
+		indexName := fmt.Sprintf("idx_%s_%s", fk.ChildTable, colSanitized)
+		createCmd := fmt.Sprintf("CREATE INDEX CONCURRENTLY %s ON %s.%s (%s);", indexName, fk.Schema, fk.ChildTable, fk.FKColumns)
+		b.WriteString(sqlSnippetStyle.Render("  " + createCmd))
+		b.WriteString("\n")
+	}
+
+	fmt.Println(tableCardStyle.Render(b.String()))
 }

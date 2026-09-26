@@ -116,3 +116,58 @@ func RUnusedIndex(ctx context.Context, pool *pgxpool.Pool) ([]UnusedIndex, error
 
 	return uIndex, rows.Err()
 }
+
+type MissingFKIndex struct {
+	Schema         string
+	ChildTable     string
+	ConstraintName string
+	FKColumns      string
+	ParentTable    string
+}
+
+// foreign key constraints that do not have a covering index on the child table.
+func GetMissingFKIndexes(ctx context.Context, pool *pgxpool.Pool) ([]MissingFKIndex, error) {
+	query := `
+		SELECT
+			n.nspname AS schema_name,
+			c_child.relname AS child_table,
+			c.conname AS constraint_name,
+			ARRAY_TO_STRING(ARRAY(
+				SELECT a.attname
+				FROM unnest(c.conkey) WITH ORDINALITY AS u(attnum, ord)
+				JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
+				ORDER BY u.ord
+			), ', ') AS fk_columns,
+			c_parent.relname AS parent_table
+		FROM pg_constraint c
+		JOIN pg_class c_child ON c.conrelid = c_child.oid
+		JOIN pg_class c_parent ON c.confrelid = c_parent.oid
+		JOIN pg_namespace n ON c_child.relnamespace = n.oid
+		WHERE c.contype = 'f'
+		  AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+		  AND NOT EXISTS (
+			  SELECT 1
+			  FROM pg_index idx
+			  WHERE idx.indrelid = c.conrelid
+			    AND (idx.indkey::int2[])[1:cardinality(c.conkey)] = c.conkey
+		  )
+		ORDER BY c_child.relname, c.conname;
+	`
+
+	rows, err := pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query missing foreign key indexes: %w", err)
+	}
+	defer rows.Close()
+
+	var fks []MissingFKIndex
+	for rows.Next() {
+		var fk MissingFKIndex
+		if err := rows.Scan(&fk.Schema, &fk.ChildTable, &fk.ConstraintName, &fk.FKColumns, &fk.ParentTable); err != nil {
+			return nil, fmt.Errorf("failed to scan missing foreign key index row: %w", err)
+		}
+		fks = append(fks, fk)
+	}
+
+	return fks, rows.Err()
+}
