@@ -2,9 +2,12 @@
 
 `iCli` is a Go CLI that reads PostgreSQL query statistics, explains the most expensive queries, identifies execution-plan bottlenecks, detects missing foreign key indexes, and reports unused indexes.
 
+> [!NOTE]
+> 🔒 **Read-Only Guarantee**: `iCli` only executes read-only SQL queries (`SELECT` metadata and `EXPLAIN` plan analysis). It never mutates, inserts, or deletes any data in your database.
+
 ## Demo
 
-![iCli example output](/assets/demo.gif)
+![iCli example output](assets/demo.gif)
 
 ## Features
 
@@ -38,7 +41,17 @@ On a Homebrew PostgreSQL installation, restart with:
 brew services restart postgresql@18
 ```
 
-## Run Locally
+## Quick Start
+
+### Install via `go install`
+
+If you have Go installed, you can install `icli` directly:
+
+```bash
+go install github.com/abhiraj-ku/pg_adv/cmd/icli@latest
+```
+
+### Run Locally / From Source
 
 Clone the repository and run the CLI with a PostgreSQL connection string.
 
@@ -50,8 +63,8 @@ DSN resolution order:
 Examples:
 
 ```bash
-git clone <repository-url>
-cd pg_advisor
+git clone https://github.com/abhiraj-ku/iCli.git
+cd iCli
 export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 
 # Run full performance and index inspection
@@ -130,17 +143,17 @@ GOFLAGS=-mod=mod go run ./cmd/icli
 
 ## Releases
 
-Prebuilt releases are available for these platforms:
+Prebuilt releases are available for these platforms on the GitHub [Releases](https://github.com/abhiraj-ku/iCli/releases) page:
 
 | Platform | Architecture | Archive name pattern |
 | --- | --- | --- |
-| Linux | x86_64 | `<project>_Linux_x86_64.tar.gz` |
-| macOS (Apple Silicon, M-series) | ARM 64-bit | `<project>_Darwin_arm64.tar.gz` |
+| Linux | x86_64 | `icli_Linux_x86_64.tar.gz` |
+| macOS (Apple Silicon, M-series) | ARM 64-bit | `icli_Darwin_arm64.tar.gz` |
 
-Download the archive for your platform from the project's Releases page, extract it, and run `icli`:
+Download the archive for your platform from the Releases page, extract it, and run `icli`:
 
 ```bash
-tar -xzf <release-archive>.tar.gz
+tar -xzf icli_Darwin_arm64.tar.gz
 ./icli -dsn="postgres://user:password@localhost:5432/database?sslmode=disable"
 ```
 
