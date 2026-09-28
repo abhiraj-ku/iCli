@@ -67,23 +67,31 @@ git clone https://github.com/abhiraj-ku/iCli.git
 cd iCli
 export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 
-# Run full performance and index inspection
+# Display interactive CLI commands menu & guide
 go run ./cmd/icli
 
-# Or generate an instant database health summary report
+# Analyze top slow queries & execution plans
+go run ./cmd/icli analyze -n 5
+
+# Scan for unused indexes and missing foreign key indexes
+go run ./cmd/icli index
+go run ./cmd/icli index unused
+go run ./cmd/icli index missing-fk
+
+# Generate an instant database health summary report
 go run ./cmd/icli report
 ```
 
 Or pass the DSN explicitly:
 
 ```bash
-go run ./cmd/icli -d="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+go run ./cmd/icli analyze -d="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 ```
 
 The long-form flag is also supported:
 
 ```bash
-go run ./cmd/icli --dsn="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+go run ./cmd/icli analyze --dsn="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 ```
 
 Build a binary with:
@@ -91,7 +99,7 @@ Build a binary with:
 ```bash
 go build -o icli ./cmd/icli
 export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
-./icli
+./icli analyze
 ```
 
 ## Developer Setup
@@ -119,7 +127,7 @@ export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 
 ### Repo layout
 
-- `cmd/icli` — CLI entrypoint and subcommand routing (`report`, `update`)
+- `cmd/icli` — CLI entrypoint and subcommand routing (`analyze`, `index`, `report`, `update`)
 - `internals/analyzer` — execution-plan issue detection rules
 - `internals/db` — PostgreSQL queries (`pg_stat_statements`, unused indexes, missing foreign key indexes)
 - `internals/health` — database health stats collection (cache hit ratio, active connections)

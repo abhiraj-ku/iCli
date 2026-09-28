@@ -2,8 +2,6 @@ package report
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/abhiraj-ku/pg_adv/internals/health"
@@ -22,8 +20,7 @@ var (
 					Foreground(lipgloss.Color("#FF5F87"))
 
 	healthLabelStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#A8B0D3")).
-				Width(18)
+				Foreground(lipgloss.Color("#A8B0D3"))
 
 	healthValueStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#E6EEF8")).
@@ -38,11 +35,17 @@ var (
 )
 
 func RenderHealthReport(r *health.Report) {
+	cardWidth := getCardWidth()
+	innerWidth := cardWidth - 4
+	if innerWidth < 30 {
+		innerWidth = 30
+	}
+
 	var b strings.Builder
 	b.WriteString(healthTitleStyle.Render("DATABASE REPORT"))
 	b.WriteString("\n\n")
 
-	b.WriteString(renderHealthSection("Server",
+	b.WriteString(renderHealthSection("Server", innerWidth,
 		[2]string{"PostgreSQL", r.Server.PGVersion},
 		[2]string{"Database", r.Server.DatabaseName},
 		[2]string{"Size", r.Server.DatabaseSize},
@@ -56,7 +59,7 @@ func RenderHealthReport(r *health.Report) {
 	))
 	b.WriteString("\n")
 
-	b.WriteString(renderHealthSection("Connections",
+	b.WriteString(renderHealthSection("Connections", innerWidth,
 		[2]string{"Connections", fmt.Sprintf("%d / %d", r.Connections.TotalConnections, r.Connections.MaxConnections)},
 		[2]string{"Active", fmt.Sprintf("%d", r.Connections.Active)},
 	))
@@ -70,38 +73,36 @@ func RenderHealthReport(r *health.Report) {
 		cacheColor = "#FF5F87"
 	}
 	hitStr := lipgloss.NewStyle().Foreground(lipgloss.Color(cacheColor)).Bold(true).Render(fmt.Sprintf("%.1f%%", r.Cache.HitRatio))
-	b.WriteString(renderHealthSection("Cache",
+	b.WriteString(renderHealthSection("Cache", innerWidth,
 		[2]string{"Cache hit", hitStr},
 		[2]string{"Cache miss", fmt.Sprintf("%.1f%%", r.Cache.MissRatio)},
 	))
 
-	panelWidth := terminalWidth()
-	panel := healthPanelStyle.Width(panelWidth).MaxWidth(panelWidth)
-
+	panel := healthPanelStyle.Width(cardWidth)
 	fmt.Println(panel.Render(b.String()))
 }
 
-func terminalWidth() int {
-	if cols := os.Getenv("COLUMNS"); cols != "" {
-		if width, err := strconv.Atoi(cols); err == nil && width > 0 {
-			return width
-		}
-	}
-	return 100
-}
-
-func renderHealthSection(title string, rows ...[2]string) string {
+func renderHealthSection(title string, innerWidth int, rows ...[2]string) string {
 	var b strings.Builder
 	b.WriteString(healthSectionHeaderStyle.Render(title))
 	b.WriteString("\n")
+
+	labelWidth := 16
+	if innerWidth < 40 {
+		labelWidth = 12
+	}
+	lblStyle := healthLabelStyle.Width(labelWidth)
+
+	valWidth := innerWidth - labelWidth - 4
+	if valWidth < 10 {
+		valWidth = 10
+	}
+	valStyle := healthValueStyle.Width(valWidth)
+
 	for _, row := range rows {
-		b.WriteString(fmt.Sprintf("  %s %s\n", healthLabelStyle.Render(row[0]), healthValueStyle.Render(row[1])))
+		b.WriteString(fmt.Sprintf("  %s %s\n", lblStyle.Render(row[0]), valStyle.Render(row[1])))
 	}
 	return b.String()
-}
-
-func printRow(label, value string) {
-	fmt.Printf("  %s %s\n", healthLabelStyle.Render(label), healthValueStyle.Render(value))
 }
 
 func formatUptime(uptime string) string {
