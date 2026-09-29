@@ -2,6 +2,14 @@
 
 `iCli` is a read-only Go CLI tool for slow query profiling, N+1 loop detection, execution plan analysis, and index auditing.
 
+<p align="left">
+  <a href="https://github.com/abhiraj-ku/iCli/releases"><img src="https://img.shields.io/github/v/release/abhiraj-ku/iCli?style=flat-square&color=7D56F4" alt="Release"></a>
+  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
+  <a href="https://github.com/abhiraj-ku/iCli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/abhiraj-ku/iCli?style=flat-square&color=04B575" alt="License"></a>
+  <a href="https://github.com/abhiraj-ku/iCli/stargazers"><img src="https://img.shields.io/github/stars/abhiraj-ku/iCli?style=flat-square&color=F8C537" alt="Stars"></a>
+  <a href="https://github.com/abhiraj-ku/iCli/issues"><img src="https://img.shields.io/github/issues/abhiraj-ku/iCli?style=flat-square&color=FF5F87" alt="Issues"></a>
+</p>
+
 > [!NOTE]
 > 🔒 **Read-Only Guarantee**: `iCli` only executes read-only SQL queries (`SELECT` metadata and `EXPLAIN` plan analysis). It never mutates, inserts, or deletes any data in your database.
 
