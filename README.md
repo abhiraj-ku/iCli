@@ -1,6 +1,6 @@
-# iCli - PostgreSQL query and index advisor
+# ⚡ iCli — PostgreSQL Query & Index Profiler
 
-`iCli` is a Go CLI that reads PostgreSQL query statistics, explains the most expensive queries, identifies execution-plan bottlenecks, detects missing foreign key indexes, and reports unused indexes.
+`iCli` is a read-only Go CLI tool for slow query profiling, N+1 loop detection, execution plan analysis, and index auditing.
 
 > [!NOTE]
 > 🔒 **Read-Only Guarantee**: `iCli` only executes read-only SQL queries (`SELECT` metadata and `EXPLAIN` plan analysis). It never mutates, inserts, or deletes any data in your database.
@@ -11,9 +11,9 @@
   <img src="assets/demo.gif" alt="iCli Demo" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333;">
 </p>
 
-
 ## Features
 
+- **N+1 Query Loop Detection**: Identifies parameterized queries executing repeatedly in application loops (`WHERE col = $1`), correlates parent/child queries, and recommends batched SQL (`WHERE col = ANY(...)`) or ORM prefetching.
 - **Expensive Query Analysis**: Identifies slow and resource-heavy queries using `pg_stat_statements`.
 - **Execution Plan Profiling**: Runs `EXPLAIN (FORMAT JSON)` and detects plan bottlenecks (e.g., sequential scans, disk sort spillage, inefficient joins).
 - **Missing Foreign Key Index Detection**: Finds foreign key constraints on child tables without a covering index, preventing severe sequential scan table locks on parent `UPDATE` or `DELETE` operations.
@@ -76,6 +76,9 @@ go run ./cmd/icli
 # Analyze top slow queries & execution plans
 go run ./cmd/icli analyze -n 5
 
+# Detect N+1 query patterns & loop bottlenecks
+go run ./cmd/icli n1query -m 50
+
 # Scan for unused indexes and missing foreign key indexes
 go run ./cmd/icli index
 go run ./cmd/icli index unused
@@ -130,9 +133,9 @@ export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 
 ### Repo layout
 
-- `cmd/icli` — CLI entrypoint and subcommand routing (`analyze`, `index`, `report`, `update`)
-- `internals/analyzer` — execution-plan issue detection rules
-- `internals/db` — PostgreSQL queries (`pg_stat_statements`, unused indexes, missing foreign key indexes)
+- `cmd/icli` — CLI entrypoint and subcommand routing (`analyze`, `index`, `n1query`, `report`, `update`)
+- `internals/analyzer` — execution-plan issue rules and N+1 loop detection heuristics
+- `internals/db` — PostgreSQL queries (`pg_stat_statements`, unused indexes, unindexed foreign keys, N+1 candidate query stats)
 - `internals/health` — database health stats collection (cache hit ratio, active connections)
 - `internals/report` — modern Lipgloss terminal TUI rendering
 
@@ -141,8 +144,8 @@ export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 ```bash
 go test ./...
 go run ./cmd/icli
+go run ./cmd/icli n1query
 go run ./cmd/icli report
-GOFLAGS=-mod=mod go run ./cmd/icli
 ```
 
 ### Troubleshooting
@@ -174,7 +177,8 @@ Windows and Intel macOS binaries are not included in releases.
 
 1. Reads the PostgreSQL server version to select the correct execution-time column (`total_time` vs `total_exec_time`).
 2. Queries `pg_stat_statements` and excludes `iCli`'s internal telemetry queries.
-3. Sanitizes parameter placeholders before requesting an `EXPLAIN (FORMAT JSON)` plan.
-4. Walks execution plans and reports bottlenecks like sequential scans, disk sort spillage, and inefficient nested loops.
-5. Queries `pg_stat_user_indexes` and `pg_index` to find non-primary, non-unique indexes with 0 recorded scans.
-6. Inspects `pg_constraint`, `pg_attribute`, and `pg_index` to detect unindexed foreign keys on child tables.
+3. Analyzes high-frequency parameterized queries (`WHERE col = $1`), detecting N+1 application loop patterns and correlating parent/child queries.
+4. Sanitizes parameter placeholders before requesting an `EXPLAIN (FORMAT JSON)` plan.
+5. Walks execution plans and reports bottlenecks like sequential scans, disk sort spillage, and inefficient nested loops.
+6. Queries `pg_stat_user_indexes` and `pg_index` to find non-primary, non-unique indexes with 0 recorded scans.
+7. Inspects `pg_constraint`, `pg_attribute`, and `pg_index` to detect unindexed foreign keys on child tables.

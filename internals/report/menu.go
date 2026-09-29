@@ -46,7 +46,7 @@ func RenderMenu(version string) {
 	b.WriteString(headerStyle.Render(bannerText))
 	b.WriteString("\n\n")
 
-	introText := "iCli connects to PostgreSQL to profile slow queries, analyze EXPLAIN execution plans, detect unused indexes, and scan for unindexed foreign keys."
+	introText := "iCli profiles slow queries, inspects EXPLAIN plans, detects N+1 query loops, identifies missing or unused indexes, and audits database health metrics."
 	b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Width(iw).Render(introText))
 	b.WriteString("\n")
 
