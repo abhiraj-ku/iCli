@@ -14,7 +14,6 @@ var updateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Checking for updates... (Current version: %s)\n", version)
 
-		// init the updater to point to release repo
 		updater, err := selfupdate.NewUpdater(selfupdate.Config{})
 		if err != nil {
 			return fmt.Errorf("failed to create updater: %w", err)

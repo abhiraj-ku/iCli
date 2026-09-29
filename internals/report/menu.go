@@ -7,12 +7,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func RenderCLIMenu(version string) {
-	cardWidth := getCardWidth()
-	innerWidth := cardWidth - 4
-	if innerWidth < 30 {
-		innerWidth = 30
-	}
+func RenderMenu(version string) {
+	cw, iw := LayoutBounds()
 
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -46,34 +42,32 @@ func RenderCLIMenu(version string) {
 
 	var b strings.Builder
 
-	// Header banner
 	bannerText := fmt.Sprintf("⚡ iCli — PostgreSQL Query & Index Profiler (%s)", version)
 	b.WriteString(headerStyle.Render(bannerText))
 	b.WriteString("\n\n")
 
 	introText := "iCli connects to PostgreSQL to profile slow queries, analyze EXPLAIN execution plans, detect unused indexes, and scan for unindexed foreign keys."
-	b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Width(innerWidth).Render(introText))
+	b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Width(iw).Render(introText))
 	b.WriteString("\n")
 
-	// Usage section
 	b.WriteString(sectionHeaderStyle.Render("USAGE"))
 	b.WriteString("\n")
 	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#E6EEF8")).Render("  $ icli <command> [flags]"))
 	b.WriteString("\n")
 
-	// Commands section
 	b.WriteString(sectionHeaderStyle.Render("AVAILABLE COMMANDS"))
 	b.WriteString("\n")
 
 	commands := [][2]string{
 		{"analyze", "Analyze top slow queries and EXPLAIN (FORMAT JSON) plan bottlenecks"},
 		{"index", "Scan database indexes (unused indexes & missing FK constraints)"},
+		{"n1query", "Detect N+1 query patterns and high-frequency application loop queries"},
 		{"report", "Generate instant database health, connection & cache metrics summary"},
 		{"update", "Check and update iCli binary to the latest GitHub release"},
 	}
 
 	for _, cmd := range commands {
-		descWidth := innerWidth - 22
+		descWidth := iw - 22
 		if descWidth < 20 {
 			descWidth = 20
 		}
@@ -83,7 +77,6 @@ func RenderCLIMenu(version string) {
 		))
 	}
 
-	// Index subcommands section
 	b.WriteString(sectionHeaderStyle.Render("INDEX SUBCOMMANDS"))
 	b.WriteString("\n")
 
@@ -93,7 +86,7 @@ func RenderCLIMenu(version string) {
 	}
 
 	for _, subcmd := range subcommands {
-		descWidth := innerWidth - 28
+		descWidth := iw - 28
 		if descWidth < 20 {
 			descWidth = 20
 		}
@@ -103,7 +96,6 @@ func RenderCLIMenu(version string) {
 		))
 	}
 
-	// Global Flags
 	b.WriteString(sectionHeaderStyle.Render("GLOBAL FLAGS"))
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("  %s %s\n",
@@ -115,7 +107,6 @@ func RenderCLIMenu(version string) {
 		cmdDescStyle.Render("Display command help and usage details"),
 	))
 
-	// Quick Start Examples
 	b.WriteString(sectionHeaderStyle.Render("QUICK START EXAMPLES"))
 	b.WriteString("\n")
 
@@ -126,13 +117,16 @@ func RenderCLIMenu(version string) {
 		"# 1. Profile top 5 slow queries & execution plans",
 		"icli analyze -n 5",
 		"",
-		"# 2. Scan for unused indexes causing write bloat",
+		"# 2. Detect N+1 query patterns & loop bottlenecks",
+		"icli n1query -m 50",
+		"",
+		"# 3. Scan for unused indexes causing write bloat",
 		"icli index unused",
 		"",
-		"# 3. Find unindexed foreign key columns",
+		"# 4. Find unindexed foreign key columns",
 		"icli index missing-fk",
 		"",
-		"# 4. View database health & cache hit ratio",
+		"# 5. View database health & cache hit ratio",
 		"icli report",
 	}
 
@@ -147,14 +141,18 @@ func RenderCLIMenu(version string) {
 
 	footerText := "Run 'icli <command> --help' for detailed info on a specific subcommand."
 	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Italic(true).Width(innerWidth).Render(footerText))
+	b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Italic(true).Width(iw).Render(footerText))
 
 	card := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(primaryColor).
 		Padding(1, 2).
 		MarginBottom(1).
-		Width(cardWidth)
+		Width(cw)
 
 	fmt.Println(card.Render(b.String()))
+}
+
+func RenderCLIMenu(version string) {
+	RenderMenu(version)
 }

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/abhiraj-ku/pg_adv/internals/health"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -34,32 +33,28 @@ var (
 				MarginBottom(1)
 )
 
-func RenderHealthReport(r *health.Report) {
-	cardWidth := getCardWidth()
-	innerWidth := cardWidth - 4
-	if innerWidth < 30 {
-		innerWidth = 30
-	}
+func RenderHealth(r *health.Report) {
+	cw, iw := LayoutBounds()
 
 	var b strings.Builder
 	b.WriteString(healthTitleStyle.Render("DATABASE REPORT"))
 	b.WriteString("\n\n")
 
-	b.WriteString(renderHealthSection("Server", innerWidth,
+	inRecovery := "no"
+	if r.Server.InRecovery {
+		inRecovery = "yes"
+	}
+
+	b.WriteString(renderHealthSec("Server", iw,
 		[2]string{"PostgreSQL", r.Server.PGVersion},
 		[2]string{"Database", r.Server.DatabaseName},
 		[2]string{"Size", r.Server.DatabaseSize},
 		[2]string{"Uptime", formatUptime(r.Server.Uptime)},
-		[2]string{"In recovery", func() string {
-			if r.Server.InRecovery {
-				return "yes"
-			}
-			return "no"
-		}()},
+		[2]string{"In recovery", inRecovery},
 	))
 	b.WriteString("\n")
 
-	b.WriteString(renderHealthSection("Connections", innerWidth,
+	b.WriteString(renderHealthSec("Connections", iw,
 		[2]string{"Connections", fmt.Sprintf("%d / %d", r.Connections.TotalConnections, r.Connections.MaxConnections)},
 		[2]string{"Active", fmt.Sprintf("%d", r.Connections.Active)},
 	))
@@ -73,16 +68,19 @@ func RenderHealthReport(r *health.Report) {
 		cacheColor = "#FF5F87"
 	}
 	hitStr := lipgloss.NewStyle().Foreground(lipgloss.Color(cacheColor)).Bold(true).Render(fmt.Sprintf("%.1f%%", r.Cache.HitRatio))
-	b.WriteString(renderHealthSection("Cache", innerWidth,
+	b.WriteString(renderHealthSec("Cache", iw,
 		[2]string{"Cache hit", hitStr},
 		[2]string{"Cache miss", fmt.Sprintf("%.1f%%", r.Cache.MissRatio)},
 	))
 
-	panel := healthPanelStyle.Width(cardWidth)
-	fmt.Println(panel.Render(b.String()))
+	fmt.Println(healthPanelStyle.Width(cw).Render(b.String()))
 }
 
-func renderHealthSection(title string, innerWidth int, rows ...[2]string) string {
+func RenderHealthReport(r *health.Report) {
+	RenderHealth(r)
+}
+
+func renderHealthSec(title string, innerWidth int, rows ...[2]string) string {
 	var b strings.Builder
 	b.WriteString(healthSectionHeaderStyle.Render(title))
 	b.WriteString("\n")
@@ -107,7 +105,7 @@ func renderHealthSection(title string, innerWidth int, rows ...[2]string) string
 
 func formatUptime(uptime string) string {
 	clean := strings.ReplaceAll(uptime, " days ", "d ")
-	clean = strings.ReplaceAll(uptime, " day ", "d ")
+	clean = strings.ReplaceAll(clean, " day ", "d ")
 	parts := strings.Split(clean, ":")
 	if len(parts) >= 2 {
 		return fmt.Sprintf("%sh", parts[0])

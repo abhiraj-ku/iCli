@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func FetchReport(ctx context.Context, pool *pgxpool.Pool) (*Report, error) {
+func Fetch(ctx context.Context, pool *pgxpool.Pool) (*Report, error) {
 	report := &Report{}
 
 	query := `
@@ -69,4 +69,8 @@ func FetchReport(ctx context.Context, pool *pgxpool.Pool) (*Report, error) {
 	}
 
 	return report, nil
+}
+
+func FetchReport(ctx context.Context, pool *pgxpool.Pool) (*Report, error) {
+	return Fetch(ctx, pool)
 }

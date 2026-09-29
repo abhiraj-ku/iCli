@@ -81,7 +81,7 @@ var (
 			Foreground(dangerColor)
 )
 
-func GetTerminalWidth() int {
+func TermWidth() int {
 	fd := os.Stdout.Fd()
 	if term.IsTerminal(fd) {
 		width, _, err := term.GetSize(fd)
@@ -97,8 +97,8 @@ func GetTerminalWidth() int {
 	return 100
 }
 
-func getCardWidth() int {
-	w := GetTerminalWidth()
+func cardWidth() int {
+	w := TermWidth()
 	if w < 50 {
 		return 48
 	}
@@ -108,13 +108,35 @@ func getCardWidth() int {
 	return w - 4
 }
 
-func PrintQueryIssues(queryID int64, queryText string, avgTime float64, issues []analyzer.Issue) {
-	cardWidth := getCardWidth()
-	innerWidth := cardWidth - 4
-	if innerWidth < 30 {
-		innerWidth = 30
+func LayoutBounds() (int, int) {
+	cw := cardWidth()
+	iw := cw - 4
+	if iw < 30 {
+		iw = 30
 	}
+	return cw, iw
+}
 
+func GetLayoutWidths() (int, int) {
+	return LayoutBounds()
+}
+
+func FormatSeverity(severity string) string {
+	if strings.EqualFold(severity, "High") {
+		return highSeverityBadge.Render(" HIGH ")
+	}
+	if strings.EqualFold(severity, "Medium") {
+		return medSeverityBadge.Render(" MED ")
+	}
+	return lipgloss.NewStyle().Foreground(subtleTextColor).Render(" LOW ")
+}
+
+func RenderSeverityBadge(severity string) string {
+	return FormatSeverity(severity)
+}
+
+func RenderIssues(queryID int64, queryText string, avgTime float64, issues []analyzer.Issue) {
+	cw, iw := LayoutBounds()
 	var b strings.Builder
 
 	badge := queryIdBadge.Render(fmt.Sprintf("QUERY #%d", queryID))
@@ -125,28 +147,22 @@ func PrintQueryIssues(queryID int64, queryText string, avgTime float64, issues [
 	displayQuery := strings.Join(strings.Fields(queryText), " ")
 	b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Render("SQL Query:"))
 	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#E6EEF8")).Italic(true).Width(innerWidth).Render(displayQuery))
+	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#E6EEF8")).Italic(true).Width(iw).Render(displayQuery))
 	b.WriteString("\n")
 
 	if len(issues) == 0 {
 		b.WriteString("\n")
-		b.WriteString(successStyle.Width(innerWidth).Render("✓ Execution plan healthy. No obvious bottlenecks detected."))
+		b.WriteString(successStyle.Width(iw).Render("✓ Execution plan healthy. No obvious bottlenecks detected."))
 	} else {
 		for _, issue := range issues {
 			b.WriteString("\n")
-			var sevBadge string
-			if strings.EqualFold(issue.Severity, "High") {
-				sevBadge = highSeverityBadge.Render(" HIGH ")
-			} else {
-				sevBadge = medSeverityBadge.Render(" MED ")
-			}
-
+			sevBadge := FormatSeverity(issue.Severity)
 			titleText := fmt.Sprintf("%s %s  (Relation: %s)", sevBadge, lipgloss.NewStyle().Bold(true).Render(issue.Type), issue.Relation)
-			b.WriteString(lipgloss.NewStyle().Width(innerWidth).Render(titleText))
+			b.WriteString(lipgloss.NewStyle().Width(iw).Render(titleText))
 			b.WriteString("\n")
 
 			descText := fmt.Sprintf("Details: %s", issue.Description)
-			b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Width(innerWidth).Render(descText))
+			b.WriteString(lipgloss.NewStyle().Foreground(subtleTextColor).Width(iw).Render(descText))
 			b.WriteString("\n")
 
 			switch issue.Type {
@@ -154,40 +170,39 @@ func PrintQueryIssues(queryID int64, queryText string, avgTime float64, issues [
 				sql := fmt.Sprintf("CREATE INDEX CONCURRENTLY idx_%s_optimizer ON %s (/* columns */);", issue.Relation, issue.Relation)
 				b.WriteString(recHeaderStyle.Render("💡 Recommendation: "))
 				b.WriteString("\n")
-				b.WriteString(sqlSnippetStyle.Width(innerWidth).Render(sql))
+				b.WriteString(sqlSnippetStyle.Width(iw).Render(sql))
 			case "Memory Starvation":
 				sql := "SET work_mem = '64MB';"
 				b.WriteString(recHeaderStyle.Render("💡 Recommendation: "))
 				b.WriteString("\n")
-				b.WriteString(sqlSnippetStyle.Width(innerWidth).Render(sql))
+				b.WriteString(sqlSnippetStyle.Width(iw).Render(sql))
 			case "Inefficient Join":
 				b.WriteString(recHeaderStyle.Render("💡 Recommendation: "))
 				b.WriteString("\n")
-				b.WriteString(sqlSnippetStyle.Width(innerWidth).Render("Add an index on the join condition columns to avoid sequential scans."))
+				b.WriteString(sqlSnippetStyle.Width(iw).Render("Add an index on the join condition columns to avoid sequential scans."))
 			}
 			b.WriteString("\n")
 		}
 	}
 
-	fmt.Println(queryCardStyle.Width(cardWidth).Render(b.String()))
+	fmt.Println(queryCardStyle.Width(cw).Render(b.String()))
 }
 
-func PrintUnusedIndexes(indexes []db.UnusedIndex) {
-	cardWidth := getCardWidth()
-	innerWidth := cardWidth - 4
-	if innerWidth < 30 {
-		innerWidth = 30
-	}
+func PrintQueryIssues(queryID int64, queryText string, avgTime float64, issues []analyzer.Issue) {
+	RenderIssues(queryID, queryText, avgTime, issues)
+}
 
-	fmt.Println(SectionBannerStyle.Width(cardWidth).Render(" 🔍 UNUSED INDEX ANALYSIS "))
+func RenderUnused(indexes []db.UnusedIndex) {
+	cw, iw := LayoutBounds()
+	fmt.Println(SectionBannerStyle.Width(cw).Render(" 🔍 UNUSED INDEX ANALYSIS "))
 
 	if len(indexes) == 0 {
-		fmt.Println(queryCardStyle.Width(cardWidth).Render(successStyle.Width(innerWidth).Render("✓ No unused indexes found. Your write & storage efficiency is optimal!")))
+		fmt.Println(queryCardStyle.Width(cw).Render(successStyle.Width(iw).Render("✓ No unused indexes found. Your write & storage efficiency is optimal!")))
 		return
 	}
 
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Foreground(warningColor).Width(innerWidth).Render(
+	b.WriteString(lipgloss.NewStyle().Foreground(warningColor).Width(iw).Render(
 		fmt.Sprintf("⚠️  Found %d index(es) with 0 recorded scans. These degrade INSERT/UPDATE throughput and waste disk space.", len(indexes)),
 	))
 	b.WriteString("\n\n")
@@ -195,7 +210,7 @@ func PrintUnusedIndexes(indexes []db.UnusedIndex) {
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#555577"))).
-		Width(innerWidth).
+		Width(iw).
 		Headers("TABLE", "INDEX NAME", "WASTED SPACE").
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == 0 {
@@ -215,29 +230,28 @@ func PrintUnusedIndexes(indexes []db.UnusedIndex) {
 
 	for _, idx := range indexes {
 		dropCmd := fmt.Sprintf("DROP INDEX CONCURRENTLY %s.%s;", idx.Schema, idx.IndexName)
-		b.WriteString(sqlSnippetStyle.Width(innerWidth).Render("  " + dropCmd))
+		b.WriteString(sqlSnippetStyle.Width(iw).Render("  " + dropCmd))
 		b.WriteString("\n")
 	}
 
-	fmt.Println(tableCardStyle.Width(cardWidth).Render(b.String()))
+	fmt.Println(tableCardStyle.Width(cw).Render(b.String()))
 }
 
-func PrintMissingFKIndexes(fks []db.MissingFKIndex) {
-	cardWidth := getCardWidth()
-	innerWidth := cardWidth - 4
-	if innerWidth < 30 {
-		innerWidth = 30
-	}
+func PrintUnusedIndexes(indexes []db.UnusedIndex) {
+	RenderUnused(indexes)
+}
 
-	fmt.Println(SectionBannerStyle.Width(cardWidth).Render(" 🔗 MISSING FOREIGN KEY INDEX ANALYSIS "))
+func RenderMissingFKs(fks []db.MissingFKIndex) {
+	cw, iw := LayoutBounds()
+	fmt.Println(SectionBannerStyle.Width(cw).Render(" 🔗 MISSING FOREIGN KEY INDEX ANALYSIS "))
 
 	if len(fks) == 0 {
-		fmt.Println(queryCardStyle.Width(cardWidth).Render(successStyle.Width(innerWidth).Render("✓ All foreign key constraints have covering child indexes. Cascading operations are fast!")))
+		fmt.Println(queryCardStyle.Width(cw).Render(successStyle.Width(iw).Render("✓ All foreign key constraints have covering child indexes. Cascading operations are fast!")))
 		return
 	}
 
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Foreground(dangerColor).Width(innerWidth).Render(
+	b.WriteString(lipgloss.NewStyle().Foreground(dangerColor).Width(iw).Render(
 		fmt.Sprintf("⚠️  Found %d foreign key constraint(s) missing a child table index. Deletes/updates on parent tables will trigger full child table scans.", len(fks)),
 	))
 	b.WriteString("\n\n")
@@ -245,7 +259,7 @@ func PrintMissingFKIndexes(fks []db.MissingFKIndex) {
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#555577"))).
-		Width(innerWidth).
+		Width(iw).
 		Headers("CHILD TABLE", "FK COLUMNS", "CONSTRAINT", "PARENT TABLE").
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == 0 {
@@ -267,9 +281,13 @@ func PrintMissingFKIndexes(fks []db.MissingFKIndex) {
 		colSanitized := strings.ReplaceAll(strings.ReplaceAll(fk.FKColumns, ", ", "_"), " ", "_")
 		indexName := fmt.Sprintf("idx_%s_%s", fk.ChildTable, colSanitized)
 		createCmd := fmt.Sprintf("CREATE INDEX CONCURRENTLY %s ON %s.%s (%s);", indexName, fk.Schema, fk.ChildTable, fk.FKColumns)
-		b.WriteString(sqlSnippetStyle.Width(innerWidth).Render("  " + createCmd))
+		b.WriteString(sqlSnippetStyle.Width(iw).Render("  " + createCmd))
 		b.WriteString("\n")
 	}
 
-	fmt.Println(tableCardStyle.Width(cardWidth).Render(b.String()))
+	fmt.Println(tableCardStyle.Width(cw).Render(b.String()))
+}
+
+func PrintMissingFKIndexes(fks []db.MissingFKIndex) {
+	RenderMissingFKs(fks)
 }

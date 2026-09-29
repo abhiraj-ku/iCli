@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Stats metadata
 type QueryStats struct {
 	QueryID   int64
 	QueryText string
@@ -17,7 +16,6 @@ type QueryStats struct {
 	AvgTime   float64
 }
 
-// Unused indexes detection - these are generally those which are not used
 type UnusedIndex struct {
 	Schema    string
 	Table     string
@@ -25,27 +23,34 @@ type UnusedIndex struct {
 	Size      string
 }
 
-// Retrieves the top-most time consuming queries
-// we check for version PG12 vs PG13+ schema change (total_time vs total_exec_time)
-// conflict arises with how the pg_stat_statements return the schema
-func GetTopQueries(ctx context.Context, pool *pgxpool.Pool, limit int) ([]QueryStats, error) {
-	// determine PostgreSQL version to handle the pg_stat_statements schema change
+type MissingFKIndex struct {
+	Schema         string
+	ChildTable     string
+	ConstraintName string
+	FKColumns      string
+	ParentTable    string
+}
+
+func StatTimeCol(ctx context.Context, pool *pgxpool.Pool) (string, error) {
 	var verStr string
-	err := pool.QueryRow(ctx, "show server_version_num;").Scan(&verStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check pg_ver: %w", err)
-	}
-	version, _ := strconv.Atoi(verStr)
-	timeCol := "total_time"
-	if version >= 130000 {
-		timeCol = "total_exec_time"
+	if err := pool.QueryRow(ctx, "SHOW server_version_num;").Scan(&verStr); err != nil {
+		return "", fmt.Errorf("failed to fetch server version: %w", err)
 	}
 
-	// 2. Build the query. We filter out our own application_name and internal queries.
-	// We also filter out trivial queries (calls > 5) to focus on problematic queries.
+	version, _ := strconv.Atoi(verStr)
+	if version >= 130000 {
+		return "total_exec_time", nil
+	}
+	return "total_time", nil
+}
+
+func TopQueries(ctx context.Context, pool *pgxpool.Pool, limit int) ([]QueryStats, error) {
+	timeCol, err := StatTimeCol(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
 
 	query := fmt.Sprintf(`
-		/* iCli */
 		SELECT 
 			queryid, 
 			query, 
@@ -62,12 +67,11 @@ func GetTopQueries(ctx context.Context, pool *pgxpool.Pool, limit int) ([]QueryS
 
 	rows, err := pool.Query(ctx, query, limit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query pg_stat_statements. Is the extension enabled? %w", err)
+		return nil, fmt.Errorf("failed to query pg_stat_statements: %w", err)
 	}
 	defer rows.Close()
 
 	var stats []QueryStats
-
 	for rows.Next() {
 		var s QueryStats
 		if err := rows.Scan(&s.QueryID, &s.QueryText, &s.Calls, &s.TotalTime, &s.AvgTime); err != nil {
@@ -75,29 +79,22 @@ func GetTopQueries(ctx context.Context, pool *pgxpool.Pool, limit int) ([]QueryS
 		}
 		stats = append(stats, s)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed while reading pg_stat_statements: %w", err)
-	}
-	return stats, nil
+	return stats, rows.Err()
 }
 
-// retrieve unsued schemas
-func RUnusedIndex(ctx context.Context, pool *pgxpool.Pool) ([]UnusedIndex, error) {
-	// With pg_stat_user_indexes and join with pg_index.
-	// We will not scan Primary keys and unique constraints
-
+func UnusedIndexes(ctx context.Context, pool *pgxpool.Pool) ([]UnusedIndex, error) {
 	query := `
-		select 
+		SELECT 
 			s.schemaname,
-			s.relname as Table_Name,
-			s.indexrelname as Index_name,
-			pg_size_pretty(pg_relation_size(s.indexrelid)) as Index_Size
-		from pg_stat_user_indexes s
-		join pg_index i on s.indexrelid = i.indexrelid
-		where s.idx_scan=0
-		and i.indisprimary = false
-		and i.indisunique = false
-		order by pg_relation_size(s.indexrelid) desc;
+			s.relname AS table_name,
+			s.indexrelname AS index_name,
+			pg_size_pretty(pg_relation_size(s.indexrelid)) AS index_size
+		FROM pg_stat_user_indexes s
+		JOIN pg_index i ON s.indexrelid = i.indexrelid
+		WHERE s.idx_scan = 0
+		  AND i.indisprimary = false
+		  AND i.indisunique = false
+		ORDER BY pg_relation_size(s.indexrelid) DESC;
 	`
 	rows, err := pool.Query(ctx, query)
 	if err != nil {
@@ -105,28 +102,22 @@ func RUnusedIndex(ctx context.Context, pool *pgxpool.Pool) ([]UnusedIndex, error
 	}
 	defer rows.Close()
 
-	var uIndex []UnusedIndex
+	var indexes []UnusedIndex
 	for rows.Next() {
 		var idx UnusedIndex
 		if err := rows.Scan(&idx.Schema, &idx.Table, &idx.IndexName, &idx.Size); err != nil {
 			return nil, fmt.Errorf("failed to scan unused index row: %w", err)
 		}
-		uIndex = append(uIndex, idx)
+		indexes = append(indexes, idx)
 	}
-
-	return uIndex, rows.Err()
+	return indexes, rows.Err()
 }
 
-type MissingFKIndex struct {
-	Schema         string
-	ChildTable     string
-	ConstraintName string
-	FKColumns      string
-	ParentTable    string
+func RUnusedIndex(ctx context.Context, pool *pgxpool.Pool) ([]UnusedIndex, error) {
+	return UnusedIndexes(ctx, pool)
 }
 
-// foreign key constraints that do not have a covering index on the child table.
-func GetMissingFKIndexes(ctx context.Context, pool *pgxpool.Pool) ([]MissingFKIndex, error) {
+func UnindexedFKs(ctx context.Context, pool *pgxpool.Pool) ([]MissingFKIndex, error) {
 	query := `
 		SELECT
 			n.nspname AS schema_name,
@@ -168,6 +159,9 @@ func GetMissingFKIndexes(ctx context.Context, pool *pgxpool.Pool) ([]MissingFKIn
 		}
 		fks = append(fks, fk)
 	}
-
 	return fks, rows.Err()
+}
+
+func GetMissingFKIndexes(ctx context.Context, pool *pgxpool.Pool) ([]MissingFKIndex, error) {
+	return UnindexedFKs(ctx, pool)
 }

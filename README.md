@@ -7,7 +7,10 @@
 
 ## Demo
 
-![iCli example output](assets/demo.gif)
+<p align="center">
+  <img src="assets/demo.gif" alt="iCli Demo" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333;">
+</p>
+
 
 ## Features
 
@@ -153,10 +156,10 @@ GOFLAGS=-mod=mod go run ./cmd/icli
 
 Prebuilt releases are available for these platforms on the GitHub [Releases](https://github.com/abhiraj-ku/iCli/releases) page:
 
-| Platform | Architecture | Archive name pattern |
-| --- | --- | --- |
-| Linux | x86_64 | `icli_Linux_x86_64.tar.gz` |
-| macOS (Apple Silicon, M-series) | ARM 64-bit | `icli_Darwin_arm64.tar.gz` |
+| Platform                        | Architecture | Archive name pattern       |
+| ------------------------------- | ------------ | -------------------------- |
+| Linux                           | x86_64       | `icli_Linux_x86_64.tar.gz` |
+| macOS (Apple Silicon, M-series) | ARM 64-bit   | `icli_Darwin_arm64.tar.gz` |
 
 Download the archive for your platform from the Releases page, extract it, and run `icli`:
 

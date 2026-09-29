@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/abhiraj-ku/pg_adv/internals/health"
@@ -16,26 +15,14 @@ var reportCmd = &cobra.Command{
 	Short: "Generate an instant database health and metadata report",
 	Long:  "Queries PostgreSQL health statistics including active connection counts, cache hit ratio, server version, and uptime.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		resolvedDSN, err := resolveDSN()
-		if err != nil {
-			return err
-		}
+		return withDB(cmd, 10*time.Second, func(ctx context.Context, pool *pgxpool.Pool) error {
+			rep, err := health.Fetch(ctx, pool)
+			if err != nil {
+				return err
+			}
 
-		ctx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
-		defer cancel()
-
-		pool, err := pgxpool.New(ctx, resolvedDSN)
-		if err != nil {
-			return fmt.Errorf("unable to connect to database: %w", err)
-		}
-		defer pool.Close()
-
-		rep, err := health.FetchReport(ctx, pool)
-		if err != nil {
-			return err
-		}
-
-		report.RenderHealthReport(rep)
-		return nil
+			report.RenderHealth(rep)
+			return nil
+		})
 	},
 }

@@ -10,24 +10,21 @@ import (
 
 var paramCheckRegex = regexp.MustCompile(`\$\d+|\?`)
 
-// Thuis removes all parametrized variable with with SELECT NULL
-// This prevents Postgres from optimizing away "column = NULL" checks.
-func sanitizeExplainQ(qr string) string {
-	return paramCheckRegex.ReplaceAllString(qr, "(SELECT NULL)")
+func sanitizeExplain(query string) string {
+	return paramCheckRegex.ReplaceAllString(query, "(SELECT NULL)")
+}
+
+func ExplainPlan(ctx context.Context, pool *pgxpool.Pool, query string) (string, error) {
+	safeQuery := sanitizeExplain(query)
+	explainQuery := fmt.Sprintf("EXPLAIN (FORMAT JSON) %s", safeQuery)
+
+	var jsonStr string
+	if err := pool.QueryRow(ctx, explainQuery).Scan(&jsonStr); err != nil {
+		return "", fmt.Errorf("failed to generate EXPLAIN plan: %w\nQuery: %s", err, explainQuery)
+	}
+	return jsonStr, nil
 }
 
 func GetExplainPlan(ctx context.Context, pool *pgxpool.Pool, query string) (string, error) {
-	//  remove missing parameters
-	safeQr := sanitizeExplainQ(query)
-
-	explainQr := fmt.Sprintf("explain (format json) %s", safeQr)
-
-	// EXPLAIN (FORMAT JSON) returns a single row with a single string column containing the JSON array.
-	var jsonStr string
-	err := pool.QueryRow(ctx, explainQr).Scan(&jsonStr)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate EXPLAIN plan: %w\nAttempted Query: %s", err, explainQr)
-	}
-
-	return jsonStr, nil
+	return ExplainPlan(ctx, pool, query)
 }
