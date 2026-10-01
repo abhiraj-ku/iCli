@@ -2,7 +2,7 @@
 
 `iCli` is a read-only Go CLI tool for slow query profiling, N+1 loop detection, execution plan analysis, and index auditing.
 
-<p align="left">
+<p align="center">
   <a href="https://github.com/abhiraj-ku/iCli/releases"><img src="https://img.shields.io/github/v/release/abhiraj-ku/iCli?style=flat-square&color=7D56F4" alt="Release"></a>
   <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
   <a href="https://github.com/abhiraj-ku/iCli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/abhiraj-ku/iCli?style=flat-square&color=04B575" alt="License"></a>
@@ -26,6 +26,7 @@
 - **Execution Plan Profiling**: Runs `EXPLAIN (FORMAT JSON)` and detects plan bottlenecks (e.g., sequential scans, disk sort spillage, inefficient joins).
 - **Missing Foreign Key Index Detection**: Finds foreign key constraints on child tables without a covering index, preventing severe sequential scan table locks on parent `UPDATE` or `DELETE` operations.
 - **Unused Index Scanner**: Identifies non-primary, non-unique indexes with zero recorded scans that degrade `INSERT`/`UPDATE` performance.
+- **Sequence & Integer ID Overflow Auditor**: Inspects sequence generators and primary key integer types via `icli sequence` to flag columns nearing max capacity before production outage risks occur.
 - **Database Health Reports**: Displays real-time database connection metrics, cache hit ratios, and server metadata via `icli report`.
 - **Modern Terminal UI**: Formats findings into container cards, severity badges, rounded tables, and ready-to-run SQL remediation snippets powered by Lipgloss.
 
@@ -79,33 +80,40 @@ cd iCli
 export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 
 # Display interactive CLI commands menu & guide
-go run ./cmd/icli
+icli
 
 # Analyze top slow queries & execution plans
-go run ./cmd/icli analyze -n 5
+icli analyze -n 5
 
 # Detect N+1 query patterns & loop bottlenecks
-go run ./cmd/icli n1query -m 50
+icli n1query -m 50
 
 # Scan for unused indexes and missing foreign key indexes
-go run ./cmd/icli index
-go run ./cmd/icli index unused
-go run ./cmd/icli index missing-fk
+icli index
+icli index unused
+icli index missing-fk
 
 # Generate an instant database health summary report
-go run ./cmd/icli report
+icli report
+
+# Audit sequence capacity and integer ID overflow risks (filter threshold >= 50%)
+icli sequence -t 50
+
+# Help command 
+icli --help
+
 ```
 
 Or pass the DSN explicitly:
 
 ```bash
-go run ./cmd/icli analyze -d="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+icli analyze -d="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 ```
 
 The long-form flag is also supported:
 
 ```bash
-go run ./cmd/icli analyze --dsn="postgres://postgres@localhost:5432/postgres?sslmode=disable"
+icli analyze --dsn="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 ```
 
 Build a binary with:
@@ -141,9 +149,9 @@ export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 
 ### Repo layout
 
-- `cmd/icli` — CLI entrypoint and subcommand routing (`analyze`, `index`, `n1query`, `report`, `update`)
-- `internals/analyzer` — execution-plan issue rules and N+1 loop detection heuristics
-- `internals/db` — PostgreSQL queries (`pg_stat_statements`, unused indexes, unindexed foreign keys, N+1 candidate query stats)
+- `cmd/icli` — CLI entrypoint and subcommand routing (`analyze`, `index`, `n1query`, `report`, `sequence`, `update`)
+- `internals/analyzer` — execution-plan issue rules, N+1 loop detection heuristics, and sequence overflow analysis
+- `internals/db` — PostgreSQL queries (`pg_stat_statements`, unused indexes, unindexed foreign keys, sequence capacity, N+1 candidate query stats)
 - `internals/health` — database health stats collection (cache hit ratio, active connections)
 - `internals/report` — modern Lipgloss terminal TUI rendering
 
@@ -152,7 +160,8 @@ export PGDSN="postgres://postgres@localhost:5432/postgres?sslmode=disable"
 ```bash
 go test ./...
 go run ./cmd/icli
-go run ./cmd/icli n1query
+go run ./cmd/icli sequence -t 50
+
 go run ./cmd/icli report
 ```
 
@@ -190,3 +199,4 @@ Windows and Intel macOS binaries are not included in releases.
 5. Walks execution plans and reports bottlenecks like sequential scans, disk sort spillage, and inefficient nested loops.
 6. Queries `pg_stat_user_indexes` and `pg_index` to find non-primary, non-unique indexes with 0 recorded scans.
 7. Inspects `pg_constraint`, `pg_attribute`, and `pg_index` to detect unindexed foreign keys on child tables.
+8. Queries `pg_sequences` and system dependencies to calculate sequence percentage utilization (`last_value / max_value`) and map sequences to `table.column` pairs, generating zero-downtime `BIGINT` migration DDL commands for columns nearing capacity limits.

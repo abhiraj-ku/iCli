@@ -17,7 +17,7 @@ var minCalls int
 var n1Cmd = &cobra.Command{
 	Use:     "n1query",
 	Aliases: []string{"n1", "n+1"},
-	Short:   "Detect N+1 query patterns and high-frequency application loop queries",
+	Short:   "Detect N+1 query patterns and high-frequency loop queries",
 	Long:    "Analyzes pg_stat_statements to identify parameterized queries running repeatedly inside application loops, causing N+1 latency bottlenecks.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return withDB(cmd, 15*time.Second, func(ctx context.Context, pool *pgxpool.Pool) error {

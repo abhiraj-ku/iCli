@@ -48,5 +48,6 @@ func init() {
 	rootCmd.AddCommand(indexCmd)
 	rootCmd.AddCommand(n1Cmd)
 	rootCmd.AddCommand(reportCmd)
+	rootCmd.AddCommand(sequenceCmd)
 	rootCmd.AddCommand(updateCmd)
 }

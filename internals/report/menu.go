@@ -63,6 +63,7 @@ func RenderMenu(version string) {
 		{"index", "Scan database indexes (unused indexes & missing FK constraints)"},
 		{"n1query", "Detect N+1 query patterns and high-frequency application loop queries"},
 		{"report", "Generate instant database health, connection & cache metrics summary"},
+		{"sequence", "Audit sequence capacity and detect integer ID overflow outage risks"},
 		{"update", "Check and update iCli binary to the latest GitHub release"},
 	}
 
@@ -96,11 +97,15 @@ func RenderMenu(version string) {
 		))
 	}
 
-	b.WriteString(sectionHeaderStyle.Render("GLOBAL FLAGS"))
+	b.WriteString(sectionHeaderStyle.Render("GLOBAL & SUBCOMMAND FLAGS"))
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("  %s %s\n",
 		lipgloss.NewStyle().Bold(true).Foreground(cyanColor).Width(24).Render("-d, --dsn string"),
 		cmdDescStyle.Render("PostgreSQL connection string (or set PGDSN env var)"),
+	))
+	b.WriteString(fmt.Sprintf("  %s %s\n",
+		lipgloss.NewStyle().Bold(true).Foreground(cyanColor).Width(24).Render("-t, --threshold float"),
+		cmdDescStyle.Render("Min usage % threshold for sequence capacity audit (e.g. -t 50)"),
 	))
 	b.WriteString(fmt.Sprintf("  %s %s\n",
 		lipgloss.NewStyle().Bold(true).Foreground(cyanColor).Width(24).Render("-h, --help"),
@@ -128,6 +133,9 @@ func RenderMenu(version string) {
 		"",
 		"# 5. View database health & cache hit ratio",
 		"icli report",
+		"",
+		"# 6. Audit sequence capacity & integer ID overflow risks",
+		"icli sequence -t 50",
 	}
 
 	for _, ex := range examples {
