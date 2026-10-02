@@ -21,9 +21,9 @@ var sequenceCmd = &cobra.Command{
 	Long:    "Inspects PostgreSQL sequence generators and primary key integer data types to identify sequences reaching capacity limits before integer overflow outages occur.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return withDB(cmd, 15*time.Second, func(ctx context.Context, pool *pgxpool.Pool) error {
-			seqs, err := db.FetchSequences(ctx, pool)
+			seqs, err := db.Sequences(ctx, pool)
 			if err != nil {
-				return fmt.Errorf("failed to fetch sequence details: %w", err)
+				return fmt.Errorf("failed to fetch sequences: %w", err)
 			}
 
 			issues := analyzer.AnalyzeSequences(seqs, seqThreshold)

@@ -18,63 +18,56 @@ type SequenceInfo struct {
 	ColumnName   string  `json:"column_name"`
 }
 
-func FetchSequences(ctx context.Context, pool *pgxpool.Pool) ([]SequenceInfo, error) {
+func Sequences(ctx context.Context, pool *pgxpool.Pool) ([]SequenceInfo, error) {
 	query := `
 		SELECT
-			s.schemaname AS schema_name,
-			s.sequencename AS sequence_name,
-			s.data_type::text AS data_type,
-			COALESCE(s.last_value, s.start_value) AS current_value,
+			s.schemaname,
+			s.sequencename,
+			s.data_type::text,
+			COALESCE(s.last_value, s.start_value),
 			s.max_value,
-			ROUND(
-				(COALESCE(s.last_value, s.start_value)::numeric / NULLIF(s.max_value::numeric, 0)) * 100, 
-				2
-			) AS usage_percent,
-			COALESCE(tbl_cls.relname, '') AS table_name,
-			COALESCE(att.attname, '') AS column_name
+			COALESCE(ROUND((COALESCE(s.last_value, s.start_value)::numeric / NULLIF(s.max_value::numeric, 0)) * 100, 2), 0),
+			COALESCE(t.relname, ''),
+			COALESCE(a.attname, '')
 		FROM pg_sequences s
-		JOIN pg_class seq_cls 
-			ON seq_cls.relname = s.sequencename
-		JOIN pg_namespace seq_ns 
-			ON seq_ns.oid = seq_cls.relnamespace AND seq_ns.nspname = s.schemaname
-		LEFT JOIN pg_depend d 
-			ON d.objid = seq_cls.oid AND d.deptype = 'a'
-		LEFT JOIN pg_class tbl_cls 
-			ON tbl_cls.oid = d.refobjid
-		LEFT JOIN pg_attribute att 
-			ON att.attrelid = d.refobjid AND att.attnum = d.refobjsubid
+		JOIN pg_namespace n ON n.nspname = s.schemaname
+		JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = s.sequencename
+		LEFT JOIN pg_depend d ON d.objid = c.oid AND d.deptype = 'a'
+			AND d.classid = 'pg_class'::regclass AND d.refclassid = 'pg_class'::regclass
+		LEFT JOIN pg_class t ON t.oid = d.refobjid
+		LEFT JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
 		WHERE s.schemaname NOT IN ('pg_catalog', 'information_schema')
-		ORDER BY usage_percent DESC;
+		ORDER BY 6 DESC;
 	`
 
 	rows, err := pool.Query(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query sequence statistics: %w", err)
+		return nil, fmt.Errorf("failed to query sequences: %w", err)
 	}
 	defer rows.Close()
 
-	var sequences []SequenceInfo
+	var list []SequenceInfo
 	for rows.Next() {
 		var s SequenceInfo
-		var usagePct *float64
-		err := rows.Scan(
+		if err := rows.Scan(
 			&s.SchemaName,
 			&s.SequenceName,
 			&s.DataType,
 			&s.CurrentValue,
 			&s.MaxValue,
-			&usagePct,
+			&s.UsagePercent,
 			&s.TableName,
 			&s.ColumnName,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, fmt.Errorf("failed to scan sequence row: %w", err)
 		}
-		if usagePct != nil {
-			s.UsagePercent = *usagePct
-		}
-		sequences = append(sequences, s)
+		list = append(list, s)
 	}
 
-	return sequences, rows.Err()
+	return list, rows.Err()
 }
+
+func FetchSequences(ctx context.Context, pool *pgxpool.Pool) ([]SequenceInfo, error) {
+	return Sequences(ctx, pool)
+}
+

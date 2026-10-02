@@ -13,6 +13,9 @@ const (
 	SeverityCritical SequenceSeverity = "CRITICAL"
 	SeverityWarning  SequenceSeverity = "WARNING"
 	SeverityHealthy  SequenceSeverity = "HEALTHY"
+
+	CriticalThreshold = 85.0
+	WarningThreshold  = 60.0
 )
 
 type SequenceIssue struct {
@@ -30,43 +33,57 @@ func AnalyzeSequences(sequences []db.SequenceInfo, minThreshold float64) []Seque
 			continue
 		}
 
-		severity := SeverityHealthy
-		if seq.UsagePercent >= 85.0 {
-			severity = SeverityCritical
-		} else if seq.UsagePercent >= 60.0 {
-			severity = SeverityWarning
-		}
-
-		var remediationSQL string
-		var recommendation string
-
-		if seq.TableName != "" && seq.ColumnName != "" {
-			if strings.EqualFold(seq.DataType, "integer") || strings.EqualFold(seq.DataType, "int4") || strings.EqualFold(seq.DataType, "smallint") {
-				remediationSQL = fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE BIGINT;", quoteIdentifier(seq.TableName), quoteIdentifier(seq.ColumnName))
-				recommendation = fmt.Sprintf("Column %s.%s is typed as %s and is reaching sequence limit (%.1f%%). Upgrade column type to BIGINT to prevent integer overflow outages.", seq.TableName, seq.ColumnName, seq.DataType, seq.UsagePercent)
-			} else {
-				remediationSQL = fmt.Sprintf("ALTER SEQUENCE %s MAXVALUE 9223372036854775807;", quoteIdentifier(seq.SequenceName))
-				recommendation = fmt.Sprintf("Sequence %s has reached %.1f%% of its max value (%d). Increase sequence maxvalue.", seq.SequenceName, seq.UsagePercent, seq.MaxValue)
-			}
-		} else {
-			remediationSQL = fmt.Sprintf("ALTER SEQUENCE %s MAXVALUE 9223372036854775807;", quoteIdentifier(seq.SequenceName))
-			recommendation = fmt.Sprintf("Sequence %s has reached %.1f%% capacity.", seq.SequenceName, seq.UsagePercent)
-		}
+		sev := CategorizeSeverity(seq.UsagePercent)
+		sql, rec := BuildSequenceRemediation(seq)
 
 		issues = append(issues, SequenceIssue{
 			Sequence:       seq,
-			Severity:       severity,
-			RemediationSQL: remediationSQL,
-			Recommendation: recommendation,
+			Severity:       sev,
+			RemediationSQL: sql,
+			Recommendation: rec,
 		})
 	}
 
 	return issues
 }
 
-func quoteIdentifier(name string) string {
-	if strings.Contains(name, "-") || strings.Contains(name, " ") {
-		return fmt.Sprintf("\"%s\"", name)
+func CategorizeSeverity(pct float64) SequenceSeverity {
+	switch {
+	case pct >= CriticalThreshold:
+		return SeverityCritical
+	case pct >= WarningThreshold:
+		return SeverityWarning
+	default:
+		return SeverityHealthy
+	}
+}
+
+func BuildSequenceRemediation(seq db.SequenceInfo) (string, string) {
+	if seq.TableName != "" && seq.ColumnName != "" && isSmallIntType(seq.DataType) {
+		sql := fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE BIGINT;", quoteIdent(seq.TableName), quoteIdent(seq.ColumnName))
+		rec := fmt.Sprintf("Column %s.%s (%s) is at %.1f%% sequence capacity. Upgrade column type to BIGINT to prevent integer overflow outages.", seq.TableName, seq.ColumnName, seq.DataType, seq.UsagePercent)
+		return sql, rec
+	}
+
+	sql := fmt.Sprintf("ALTER SEQUENCE %s MAXVALUE 9223372036854775807;", quoteIdent(seq.SequenceName))
+	if seq.TableName != "" && seq.ColumnName != "" {
+		rec := fmt.Sprintf("Sequence %s (%s.%s) has reached %.1f%% of its max value (%d). Increase sequence maxvalue.", seq.SequenceName, seq.TableName, seq.ColumnName, seq.UsagePercent, seq.MaxValue)
+		return sql, rec
+	}
+
+	rec := fmt.Sprintf("Sequence %s has reached %.1f%% capacity.", seq.SequenceName, seq.UsagePercent)
+	return sql, rec
+}
+
+func isSmallIntType(dt string) bool {
+	dt = strings.ToLower(dt)
+	return dt == "integer" || dt == "int4" || dt == "smallint" || dt == "int2"
+}
+
+func quoteIdent(name string) string {
+	if strings.ContainsAny(name, "- ") || strings.ToUpper(name) == name {
+		return fmt.Sprintf("%q", name)
 	}
 	return name
 }
+

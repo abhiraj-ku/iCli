@@ -15,30 +15,27 @@ func RenderSequences(issues []analyzer.SequenceIssue, minThreshold float64) {
 	fmt.Println(SectionBannerStyle.Width(cw).Render(" ⚡ SEQUENCE & INTEGER ID OVERFLOW AUDIT "))
 
 	if len(issues) == 0 {
-		var b strings.Builder
-		b.WriteString(successStyle.Width(iw).Render(
-			fmt.Sprintf("✓ All database sequences are operating within safe limits (< %.0f%% capacity). No integer ID overflow risks detected!", minThreshold),
-		))
-		fmt.Println(queryCardStyle.Width(cw).Render(b.String()))
+		msg := fmt.Sprintf("✓ All database sequences are operating within safe limits (< %.0f%% capacity). No integer ID overflow risks detected!", minThreshold)
+		fmt.Println(queryCardStyle.Width(cw).Render(successStyle.Width(iw).Render(msg)))
 		return
 	}
 
-	criticalCount := 0
-	warningCount := 0
+	var criticals, warnings int
 	for _, iss := range issues {
-		if iss.Severity == analyzer.SeverityCritical {
-			criticalCount++
-		} else if iss.Severity == analyzer.SeverityWarning {
-			warningCount++
+		switch iss.Severity {
+		case analyzer.SeverityCritical:
+			criticals++
+		case analyzer.SeverityWarning:
+			warnings++
 		}
 	}
 
 	var sum strings.Builder
-	if criticalCount > 0 {
-		sum.WriteString(highSeverityBadge.Render(fmt.Sprintf(" 🚨 CRITICAL: %d SEQUENCE(S) NEAR OVERFLOW CAPACITY ", criticalCount)))
+	if criticals > 0 {
+		sum.WriteString(highSeverityBadge.Render(fmt.Sprintf(" 🚨 CRITICAL: %d SEQUENCE(S) NEAR OVERFLOW CAPACITY ", criticals)))
 		sum.WriteString("\n\n")
-	} else if warningCount > 0 {
-		sum.WriteString(medSeverityBadge.Render(fmt.Sprintf(" ⚠️  WARNING: %d SEQUENCE(S) APPROACHING CAPACITY ", warningCount)))
+	} else if warnings > 0 {
+		sum.WriteString(medSeverityBadge.Render(fmt.Sprintf(" ⚠️  WARNING: %d SEQUENCE(S) APPROACHING CAPACITY ", warnings)))
 		sum.WriteString("\n\n")
 	}
 
@@ -78,15 +75,14 @@ func RenderSequences(issues []analyzer.SequenceIssue, minThreshold float64) {
 	sum.WriteString(t.Render())
 	fmt.Println(tableCardStyle.Width(cw).Render(sum.String()))
 
-	// Print remediation cards for CRITICAL and WARNING issues
 	for _, iss := range issues {
 		if iss.Severity == analyzer.SeverityHealthy {
 			continue
 		}
 
 		var card strings.Builder
-
 		seq := iss.Sequence
+
 		title := fmt.Sprintf("SEQUENCE RISK: %s", seq.SequenceName)
 		if seq.TableName != "" && seq.ColumnName != "" {
 			title = fmt.Sprintf("SEQUENCE OVERFLOW RISK: %s.%s", seq.TableName, seq.ColumnName)
@@ -112,31 +108,32 @@ func RenderSequences(issues []analyzer.SequenceIssue, minThreshold float64) {
 	}
 }
 
+func PrintSequences(issues []analyzer.SequenceIssue, minThreshold float64) {
+	RenderSequences(issues, minThreshold)
+}
+
 func renderProgressBar(pct float64, width int) string {
 	if pct < 0 {
 		pct = 0
-	}
-	if pct > 100 {
+	} else if pct > 100 {
 		pct = 100
 	}
+
 	filled := int((pct / 100.0) * float64(width))
 	if filled > width {
 		filled = width
 	}
 	empty := width - filled
 
-	fillChar := "█"
-	emptyChar := "░"
-
 	barColor := successColor
-	if pct >= 85.0 {
+	if pct >= analyzer.CriticalThreshold {
 		barColor = dangerColor
-	} else if pct >= 60.0 {
+	} else if pct >= analyzer.WarningThreshold {
 		barColor = warningColor
 	}
 
-	fillStr := lipgloss.NewStyle().Foreground(barColor).Render(strings.Repeat(fillChar, filled))
-	emptyStr := lipgloss.NewStyle().Foreground(lipgloss.Color("#444466")).Render(strings.Repeat(emptyChar, empty))
+	fillStr := lipgloss.NewStyle().Foreground(barColor).Render(strings.Repeat("█", filled))
+	emptyStr := lipgloss.NewStyle().Foreground(lipgloss.Color("#444466")).Render(strings.Repeat("░", empty))
 	return "[" + fillStr + emptyStr + "]"
 }
 
@@ -152,17 +149,18 @@ func formatSequenceSeverity(severity analyzer.SequenceSeverity) string {
 }
 
 func formatCompactNumber(n int64) string {
-	if n >= 1_000_000_000_000 {
-		return fmt.Sprintf("%.2fT", float64(n)/1_000_000_000_000.0)
+	fn := float64(n)
+	switch {
+	case n >= 1_000_000_000_000:
+		return fmt.Sprintf("%.2fT", fn/1e12)
+	case n >= 1_000_000_000:
+		return fmt.Sprintf("%.2fB", fn/1e9)
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.2fM", fn/1e6)
+	case n >= 1_000:
+		return fmt.Sprintf("%.2fK", fn/1e3)
+	default:
+		return fmt.Sprintf("%d", n)
 	}
-	if n >= 1_000_000_000 {
-		return fmt.Sprintf("%.2fB", float64(n)/1_000_000_000.0)
-	}
-	if n >= 1_000_000 {
-		return fmt.Sprintf("%.2fM", float64(n)/1_000_000.0)
-	}
-	if n >= 1_000 {
-		return fmt.Sprintf("%.2fK", float64(n)/1_000.0)
-	}
-	return fmt.Sprintf("%d", n)
 }
+
